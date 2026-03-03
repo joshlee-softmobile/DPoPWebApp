@@ -1,4 +1,4 @@
-# DumJsonWebApp
+# DPoPWebApp
 
 A lightweight, framework-less frontend architecture built with **Lit** and **Native Web Standards**, featuring a custom security layer and an Android-inspired design pattern.
 
