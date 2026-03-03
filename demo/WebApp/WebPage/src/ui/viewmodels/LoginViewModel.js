@@ -1,9 +1,9 @@
 import { BehaviorSubject } from 'rxjs';
 import { BaseViewModel } from './BaseViewModel.js';
-import { apiManager } from '../managers/ApiManager.js';
-import { tokenManager } from '../managers/TokenManager.js';
-import { themeManager } from '../managers/ThemeManager.js';
-import { Theme } from '../constants/Theme.js';
+import { apiManager } from '../../managers/ApiManager.js';
+import { tokenManager } from '../../managers/TokenManager.js';
+import { themeManager } from '../../managers/ThemeManager.js';
+import { Theme } from '../../constants/Theme.js';
 
 export class LoginViewModel extends BaseViewModel {
     constructor(host) {

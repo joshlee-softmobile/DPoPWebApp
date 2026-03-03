@@ -6,7 +6,6 @@ export class Router {
         
         // Register your "Fragments"
         this.routes = new Map([
-            ['launch', 'launch-view'],
             ['login', 'login-view'],
             ['home', 'home-view']
         ]);
@@ -14,12 +13,28 @@ export class Router {
         this._setupListeners();
     }
 
+    /**
+     * Helper to check if a specific route is currently active.
+     */
+    isAt(routeName) {
+        const tagName = this.routes.get(routeName);
+        if (!tagName || !this.container.firstChild) return false;
+        return this.container.firstChild.tagName.toLowerCase() === tagName;
+    }
+
+    /**
+     * Boolean helper for the AppShell's logic.
+     */
+    get isAtHome() {
+        return this.isAt('home');
+    }
+
     _setupListeners() {
         window.addEventListener('hashchange', () => this._syncToHistory());
     }
 
     _syncToHistory() {
-        const slug = window.location.hash.replace('#/', '') || 'launch';
+        const slug = window.location.hash.replace(/^#\/?/, '');
         this.navigate(slug);
     }
 
@@ -48,7 +63,6 @@ export class Router {
     }
 
     // High-level Intents (Matches your v2 API)
-    toLaunch() { this.navigate('launch'); }
     toHome() { this.navigate('home'); }
     toLogin() { this.navigate('login'); }
 

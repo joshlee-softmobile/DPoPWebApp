@@ -1,6 +1,6 @@
 import { LitElement, html, css } from 'lit';
 import { BaseView } from './BaseView.js';
-import { LoginViewModel } from '../../viewmodels/LoginViewModel.js';
+import { LoginViewModel } from '../viewmodels/LoginViewModel.js';
 import { Theme } from '../../constants/Theme.js';
 
 export class LoginView extends BaseView {

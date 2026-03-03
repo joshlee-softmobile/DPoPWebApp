@@ -10,7 +10,7 @@ export async function bootstrapper() {
 
     console.debug("🛠️ Creating Splash..."); 
     // 1. Show the launch screen immediately in the body
-    const splash = document.createElement('launch-view');
+    const splash = document.createElement('app-launch');
     document.body.appendChild(splash);
 
     try {

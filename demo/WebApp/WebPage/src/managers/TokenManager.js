@@ -17,10 +17,10 @@ class TokenManager {
         this._sessionTokens = []; // RAM Cache: { index: { at, rt } }
 
         // Initialize Subject with a default state
-        this._authSubject = new BehaviorSubject({ isAuth: false, token: null });
+        this._authSubject = new BehaviorSubject({ isAuth: false, token: null, isLogout: false });
         // Expose the observable immediately so UI can subscribe anytime
         this.isAuthenticated$ = this._authSubject.asObservable().pipe(distinctUntilChanged((prev, curr) => prev.token === curr.token));
-        
+
         this._initPromise = null;
         this._hydratingSlots = new Map(); // Track active hydration per index
     }
@@ -146,7 +146,7 @@ class TokenManager {
         ]);
     }
 
-    async clearTokens() {
+    async clearTokens(isLogout = false) {
         this._assertReady();
         const idx = this._currentIdx;
         const was = this._sessionTokens[idx];
@@ -155,7 +155,7 @@ class TokenManager {
             await this._clearTokens(idx);
             stateHub.cast('TOKEN_SYNC', { type: 'CLEAR', idx });
             console.debug(`[TokenManager] Clearance confirmed for index ${idx}`);
-            this._updateAuthState(); // Update stream
+            this._updateAuthState(isLogout); // Update stream
         } catch (err) {
             this._sessionTokens[idx] = was;     //rollback
             throw new Error("Failed to persist tokens safely to Vault.");
@@ -163,11 +163,12 @@ class TokenManager {
     }
 
     // Helper to update the stream
-    _updateAuthState() {
+    _updateAuthState(isLogout = false) {
         const current = this._sessionTokens[this._currentIdx];
         this._authSubject.next({
             isAuth: !!current?.at,
-            token: current?.at || null
+            token: current?.at || null,
+            isLogout: isLogout
         });
     }
 }

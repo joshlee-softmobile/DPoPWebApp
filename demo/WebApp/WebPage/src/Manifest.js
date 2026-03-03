@@ -1,6 +1,6 @@
 // Views
 import { AppShell } from './ui/AppShell.js';
-import { LaunchView } from './ui/views/LaunchView.js';
+import { LaunchView as AppLaunch } from './ui/AppLaunch.js';
 import { LoginView } from './ui/views/LoginView.js';
 import { HomeView } from './ui/views/HomeView.js';
 
@@ -14,7 +14,7 @@ import { CryptoAssets } from './ui/components/CryptoAssets.js';
 const tags = {
     // Views
     'app-shell': AppShell,
-    'launch-view': LaunchView,
+    'app-launch': AppLaunch,
     'login-view': LoginView,
     'home-view': HomeView,
     // Components

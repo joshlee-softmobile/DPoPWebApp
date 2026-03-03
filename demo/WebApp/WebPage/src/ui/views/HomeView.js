@@ -1,6 +1,6 @@
 import { LitElement, html, css } from 'lit';
 import { BaseView } from './BaseView.js';
-import { HomeViewModel } from '../../viewmodels/HomeViewModel.js';
+import { HomeViewModel } from '../viewmodels/HomeViewModel.js';
 import { Theme } from '../../constants/Theme.js';
 
 export class HomeView extends BaseView {
@@ -8,6 +8,11 @@ export class HomeView extends BaseView {
         super();
         
         this.viewModel = new HomeViewModel(this);
+
+        this.viewModel.loading.source$.subscribe(isLoading => {
+            // This triggers the event that AppShell is listening for
+            this.dispatchLoading(isLoading, "Page Reload...");
+        });
     }
 
     static styles = css`
@@ -62,7 +67,8 @@ export class HomeView extends BaseView {
     render() {
         // Access state through the VM state objects
         const user = this.viewModel.user.value;
-        const timeLeft = this.viewModel.time.value;
+        const accessLeft = this.viewModel.accessTime.value;
+        const sessionLeft = this.viewModel.sessionTime.value;
         const isDark = this.viewModel.theme.value === Theme.DARK;
 
         if (!user) return this._renderDecrypting();
@@ -70,10 +76,13 @@ export class HomeView extends BaseView {
             <div class="container">
                 <profile-header 
                     .user=${user} 
-                    .timeLeft=${timeLeft}
+                    .accessLeft=${accessLeft}
+                    .sessionLeft=${sessionLeft}
                     .isDark=${isDark}
                     @toggle-theme=${() => this.viewModel.toggleTheme()}
-                    @logout-requested=${() => this.viewModel.logout()}>
+                    @logout-requested=${() => this.viewModel.logout()}
+                    @reload-requested=${() => this.viewModel.reloadPage()}
+                    >
                 </profile-header>
 
                 <main class="grid-layout">

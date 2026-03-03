@@ -4,17 +4,29 @@ import { tokenManager } from '../managers/TokenManager.js';
 import { LifecycleHub } from '../helpers/LifecycleHub.js';
 import { Router } from './Router.js';
 
+import { distinctUntilChanged, skip } from 'rxjs';
+
 export class AppShell extends LitElement {
     constructor() {
         super();
         this.router = null;
-        this._lastAuthState = null; // Track changes to prevent route-looping
-
+        
         // LifecycleHubs: attach() on connect, detach() on disconnect
         this.theme = new LifecycleHub(this, themeManager.theme$);
         this.auth = new LifecycleHub(this, tokenManager.isAuthenticated$);
+
+        // 2. Reactive Side Effects (For Logic)
+        // We listen to the source$ directly. No need for updated() or _lastAuthState.
+        this.auth.source$.pipe(
+            // skip(1) // Optional: Use if you only want to react to *changes* after load
+            distinctUntilChanged((prev, curr) => prev?.isAuth === curr?.isAuth)
+        ).subscribe(state =>{ 
+            console.debug(`[AppSheel] auth:`, state);
+            this._handleAuthRouting(state)
+        });
         
         this.loading = { show: false, message: 'Processing...' };
+        this.alert = { show: false, title: '', message: '' };
     }
 
     static styles = css`
@@ -67,7 +79,7 @@ export class AppShell extends LitElement {
      * The first time the UI is actually ready (Shadow DOM is accessible).
      */
     firstUpdated() {
-        console.debug(`AppShell: firstUpdated`);
+        console.debug(`[AppShell] firstUpdated`);
         const outlet = this.shadowRoot.getElementById('outlet');
         this.router = new Router(outlet);
         
@@ -80,7 +92,7 @@ export class AppShell extends LitElement {
     _setupSystemListeners() {
         // Handle BFcache (Back-Forward Cache) from your v2
         window.addEventListener('pageshow', (e) => {
-            console.log("AppShell: pageshow", e.persisted ? "(from cache)" : "(new)");
+            console.log("[AppShell] pageshow", e.persisted ? "(from cache)" : "(new)");
             if (e.persisted) {
                 // If coming back from cache, we might need to re-sync Managers
                 // or force a route check.
@@ -96,32 +108,44 @@ export class AppShell extends LitElement {
             this.loading = e.detail;
             this.requestUpdate();
         });
+
+        window.addEventListener('app:dialog', (e) => {
+            this.alert = { show: true, ...e.detail };
+            this.requestUpdate();
+        });
     }
 
-    /**
-     * Efficiently watch for Auth changes.
-     */
     updated(changedProperties) {
-        console.debug('AppShell: updated:', changedProperties);
-        // If the auth hub value changed, check if we need to navigate
-        const currentAuth = this.auth.value?.isAuth;
-        if (currentAuth !== this._lastAuthState) {
-            this._lastAuthState = currentAuth;
-            this._handleAuthRouting(this.auth.value);
-        }
+        console.debug('[AppShell] updated:', changedProperties);
     }
 
     _handleAuthRouting(authState) {
         if (!this.router || !authState) return;
 
-        const { isAuth } = authState;
-        console.log(`AppShell: Routing logic -> isAuth: ${isAuth}`);
+        const { isAuth, token, isLogout } = authState;
+        console.log(`[AppShell] Routing logic -> isAuth: ${isAuth}`);
+
+        if (!isLogout && !isAuth && this.router.isAtHome) {
+            this.alert = {
+                show: true,
+                title: 'Session Expired',
+                message: 'Your session has timed out. Please log in again.'
+            };
+            this.requestUpdate();
+            return;
+        }
         
         isAuth ? this.router.toHome() : this.router.toLogin();
     }
 
-    _onVisible() { console.log("AppShell: Visible"); }
-    _onInvisible() { console.log("AppShell: Invisible"); }
+    _onClickDialog() {
+        this.alert.show = false;
+        this.router.toLogin();
+        this.requestUpdate();
+    }
+
+    _onVisible() { console.log("[AppShell] Visible"); }
+    _onInvisible() { console.log("[AppShell] Invisible"); }
 
     render() {
         return html`
@@ -134,6 +158,16 @@ export class AppShell extends LitElement {
                         <p style="color: white; margin-top: 1rem;">${this.loading.message}</p>
                     </div>
                 ` : ''}
+
+                <sl-dialog 
+                    label="${this.alert.title}" 
+                    ?open="${this.alert.show}" 
+                    @sl-after-hide="${this._onClickDialog}">
+                    <p>${this.alert.message}</p>
+                    <sl-button slot="footer" variant="primary" @click="${this._onClickDialog}">
+                        OK
+                    </sl-button>
+                </sl-dialog>
             </div>
         `;
     }

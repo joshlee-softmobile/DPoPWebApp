@@ -1,5 +1,5 @@
 import { LitElement } from 'lit';
-import { BaseViewModel } from '../../viewmodels/BaseViewModel.js';
+import { BaseViewModel } from '../viewmodels/BaseViewModel.js';
 
 /**
  * @class BaseView
@@ -25,5 +25,19 @@ export class BaseView extends LitElement {
                 `[Architecture Error]: ${this.constructor.name}.viewModel must be an instance of BaseViewModel.`
             );
         }
+    }
+
+    /**
+     * Standardized bridge to the AppShell's loader.
+     * @param {boolean} show 
+     * @param {string} message 
+     */
+    dispatchLoading(show, message = 'Processing...') {
+        console.debug(`[${this.constructor.name}] dispatchLoading(${show}, ${message})`);
+        window.dispatchEvent(new CustomEvent('app:loader', {
+            detail: { show, message },
+            bubbles: true,
+            composed: true
+        }));
     }
 }

@@ -4,10 +4,10 @@
  * component's presence in the DOM (Connected/Disconnected).
  */
 export class LifecycleHub {
-    constructor(host, source$) {
+    constructor(host, source$, initialValue = null) {
         this.host = host;
         this.source$ = source$;
-        this.value = null;
+        this.value = initialValue;
         this._subscription = null;
 
         // Register the controller with the LitElement
@@ -39,8 +39,12 @@ export class LifecycleHub {
 
         this._subscription = this.source$.subscribe({
             next: (val) => {
-                this.value = val;
-                this.host.requestUpdate(); 
+                console.log(`[LifecycleHub] next: ${val}`);
+                if (this.value !== val) {
+                    this.value = val;
+                    this.host.requestUpdate();
+                    console.log(`[LifecycleHub] requestUpdate!`);
+                }
             },
             error: (err) => console.error(`[LifecycleHub] Stream Error:`, err)
         });
