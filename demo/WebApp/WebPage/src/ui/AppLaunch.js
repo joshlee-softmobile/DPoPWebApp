@@ -1,6 +1,11 @@
 import { LitElement, html, css } from 'lit';
 
-export class LaunchView extends LitElement {
+export class AppLaunch extends LitElement {
+    constructor() {
+        super();
+        this.status = "Initializing...";
+    }
+
     // 1. Component-specific Styles (The old CSS moves here)
     static styles = css`
         :host {
@@ -32,17 +37,12 @@ export class LaunchView extends LitElement {
         status: { type: String }
     };
 
-    constructor() {
-        super();
-        this.status = "Initializing Secure Sandbox...";
-    }
-
     // 3. The Template (Combined from your LaunchTemplate)
     render() {
         return html`
           <div class="launch-screen">
             <div class="launch-content">
-              <h1 class="title">👽 DummyJSON Demo</h1>
+              <h1 class="title">👽 DPoP WebAPP Demo</h1>
               
               <sl-spinner style="font-size: 3rem;"></sl-spinner>
               

@@ -147,7 +147,7 @@ export class LoginView extends BaseView {
         return html`
             <sl-card>
                 <div slot="header">
-                    <strong style="font-size: 1.1rem;">DummyJSON Demo Web APP</strong>
+                    <strong style="font-size: 1.1rem;">DPoP WebAPP Demo</strong>
                     
                     <sl-button 
                         class="theme-toggle-btn"

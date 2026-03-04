@@ -30,11 +30,14 @@ export class Router {
     }
 
     _setupListeners() {
-        window.addEventListener('hashchange', () => this._syncToHistory());
+        window.addEventListener('hashchange', () => {
+            console.debug(`[Router] hashchange!`);
+            this._syncToHistory();
+        });
     }
 
     _syncToHistory() {
-        const slug = window.location.hash.replace(/^#\/?/, '');
+        const slug = window.location.hash.replace(/^#\/?/, '') || 'login';
         this.navigate(slug);
     }
 
@@ -62,7 +65,9 @@ export class Router {
         this.currentView = newView;
     }
 
-    // High-level Intents (Matches your v2 API)
+    /**
+     * Helper to navigate around safe area
+     */
     toHome() { this.navigate('home'); }
     toLogin() { this.navigate('login'); }
 

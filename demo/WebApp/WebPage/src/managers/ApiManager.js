@@ -2,6 +2,7 @@ import { tokenManager } from './TokenManager.js';
 import { dpopManager } from './DPoPManager.js';
 import { stateHub } from '../helpers/EventHub.js';
 import axios from 'axios';
+import { BehaviorSubject, distinctUntilChanged, map } from 'rxjs';
 
 /**
  * ApiManager.js
@@ -15,6 +16,11 @@ class ApiManager {
         this._BASE_URL = `${origin}/api`;
         this._isInitialised = false;
         this._refreshPromise = null;
+
+        // Initialize Subject with a default state
+        this._authSubject = new BehaviorSubject({ isAuth: false });
+        // Expose the observable immediately so UI can subscribe anytime
+        this.isAuthenticated$ = this._authSubject.asObservable();
     }
 
     // 2. Expose via Getters
@@ -83,6 +89,12 @@ class ApiManager {
             async (config) => {
                 try {
                     const token = tokenManager.getAccessToken();
+                    if (!token) {
+                        this._authSubject.next({
+                            isAuth: false
+                        });
+                        throw new Error("No access token for this slot");
+                    }
                     config.headers.Authorization = `DPoP ${token}`;
                     config._sentWithToken = token;
                     const htm = config.method || "GET";
@@ -135,12 +147,16 @@ class ApiManager {
                     // 3. Start the Refresh and store the Promise
                     this._refreshPromise = (async () => {
                         try {
-                            const rt = tokenManager.getRefreshToken();
-                            if (!rt) throw new Error("No refresh token for this slot");
-
+                            const token = tokenManager.getRefreshToken();
+                            if (!token) {
+                                this._authSubject.next({
+                                    isAuth: false
+                                });
+                                throw new Error("No refresh token for this slot");
+                            }
                             console.log(`[ApiManager] Refreshing token chain...`);
                             const res = await this._tokenApi.post('/refresh', { 
-                                refreshToken: rt,
+                                refreshToken: token,
                             });
                             
                             const { accessToken, refreshToken } = res.data;

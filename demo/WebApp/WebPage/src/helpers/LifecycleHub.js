@@ -39,7 +39,7 @@ export class LifecycleHub {
 
         this._subscription = this.source$.subscribe({
             next: (val) => {
-                console.log(`[LifecycleHub] next: ${val}`);
+                console.log(`[LifecycleHub] next:`, val);
                 if (this.value !== val) {
                     this.value = val;
                     this.host.requestUpdate();

@@ -11,7 +11,7 @@ export class HomeView extends BaseView {
 
         this.viewModel.loading.source$.subscribe(isLoading => {
             // This triggers the event that AppShell is listening for
-            this.dispatchLoading(isLoading, "Page Reload...");
+            this.dispatchLoading(isLoading, "Page Reloading...");
         });
     }
 
@@ -71,7 +71,14 @@ export class HomeView extends BaseView {
         const sessionLeft = this.viewModel.sessionTime.value;
         const isDark = this.viewModel.theme.value === Theme.DARK;
 
-        if (!user) return this._renderDecrypting();
+        if (!user) 
+            return html`
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 70vh; gap: 1.5rem;">
+                    <sl-spinner style="font-size: 3.5rem;"></sl-spinner>
+                    <code>Page Loading...</code>
+                </div>
+            `;
+
         return html`
             <div class="container">
                 <profile-header 
@@ -91,15 +98,6 @@ export class HomeView extends BaseView {
                     <crypto-assets .user=${user}></crypto-assets>
                     <financial-slots .user=${user}></financial-slots>
                 </main>
-            </div>
-        `;
-    }
-
-    _renderDecrypting() {
-        return html`
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 70vh; gap: 1.5rem;">
-                <sl-spinner style="font-size: 3.5rem;"></sl-spinner>
-                <code>ACCESSING ENCRYPTED VAULT...</code>
             </div>
         `;
     }

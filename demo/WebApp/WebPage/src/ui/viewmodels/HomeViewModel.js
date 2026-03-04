@@ -41,15 +41,12 @@ export class HomeViewModel extends BaseViewModel {
         
         if (this._user$.value) return;
 
-        this._loading$.next(true);
         try {
             const res = await apiManager.authApi.get('/user');
             this._user$.next(res.data);
             this._startHeartbeat();
         } catch (err) {
             console.error("[HomeViewModel] 🚨 Profile Sync Failed", err);
-        } finally {
-            this._loading$.next(false);
         }
     }
 

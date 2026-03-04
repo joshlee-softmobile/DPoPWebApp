@@ -1,6 +1,8 @@
-// Views
+// Core
 import { AppShell } from './ui/AppShell.js';
-import { LaunchView as AppLaunch } from './ui/AppLaunch.js';
+import { AppLaunch } from './ui/AppLaunch.js';
+
+// Views
 import { LoginView } from './ui/views/LoginView.js';
 import { HomeView } from './ui/views/HomeView.js';
 
@@ -10,11 +12,13 @@ import { VaultIdentity } from './ui/components/VaultIdentity.js';
 import { BiometricCard } from './ui/components/BiometricCard.js';
 import { FinancialSlots } from './ui/components/FinancialSlots.js';
 import { CryptoAssets } from './ui/components/CryptoAssets.js';
+import { LoaderOverlay } from './ui/components/LoaderOverlay.js';
 
 const tags = {
-    // Views
+    // Coere
     'app-shell': AppShell,
     'app-launch': AppLaunch,
+    // Views
     'login-view': LoginView,
     'home-view': HomeView,
     // Components
@@ -23,6 +27,7 @@ const tags = {
     'vault-identity': VaultIdentity,
     'financial-slots': FinancialSlots,
     'crypto-assets': CryptoAssets,
+    'loader-overlay': LoaderOverlay,
 };
 
 export const manifesto = () => {

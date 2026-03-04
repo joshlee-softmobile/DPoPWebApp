@@ -20,7 +20,7 @@ export async function bootstrapper() {
         // 1. Initialize Vault & Session
         await vaultManager.init();
         sessionManager.init();
-        
+
         console.debug("🛠️ This Start Index:", sessionManager.activeIdx); 
         console.debug("🛠️ This Session Id:", sessionManager.activeId); 
 
@@ -50,7 +50,9 @@ export async function bootstrapper() {
         // Give the browser one frame to paint the shell before resolving
         requestAnimationFrame(() => {
             shell.setAttribute('resolved', '');
-            setTimeout(() => splash.remove(), 500);
+            setTimeout(() => {
+                splash.remove();
+            }, 500);
             console.debug("✅ App Shell Resolved.");
         });
         

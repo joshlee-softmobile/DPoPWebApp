@@ -5,6 +5,7 @@ import { LifecycleHub } from '../helpers/LifecycleHub.js';
 import { Router } from './Router.js';
 
 import { distinctUntilChanged, skip } from 'rxjs';
+import { apiManager } from '../managers/ApiManager.js';
 
 export class AppShell extends LitElement {
     constructor() {
@@ -13,15 +14,17 @@ export class AppShell extends LitElement {
         
         // LifecycleHubs: attach() on connect, detach() on disconnect
         this.theme = new LifecycleHub(this, themeManager.theme$);
-        this.auth = new LifecycleHub(this, tokenManager.isAuthenticated$);
+        this.tokenAuth = new LifecycleHub(this, tokenManager.isAuthenticated$);
+        this.apiAuth = new LifecycleHub(this, apiManager.isAuthenticated$);
 
         // 2. Reactive Side Effects (For Logic)
         // We listen to the source$ directly. No need for updated() or _lastAuthState.
-        this.auth.source$.pipe(
-            // skip(1) // Optional: Use if you only want to react to *changes* after load
-            distinctUntilChanged((prev, curr) => prev?.isAuth === curr?.isAuth)
-        ).subscribe(state =>{ 
-            console.debug(`[AppShell] auth:`, state);
+        this.tokenAuth.source$.subscribe(state =>{ 
+            console.debug(`[AppShell] token auth:`, state);
+            this._handleAuthRouting(state)
+        });
+        this.apiAuth.source$.subscribe(state =>{ 
+            console.debug(`[AppShell] api auth:`, state);
             this._handleAuthRouting(state)
         });
         
@@ -57,7 +60,7 @@ export class AppShell extends LitElement {
         .loader-overlay {
             position: fixed; 
             inset: 0; /* Modern shorthand for top/left/right/bottom: 0 */
-            background: rgba(0, 0, 0, 0.7); 
+            background: rgba(0, 0, 0, 0.2); 
             backdrop-filter: blur(4px);
             display: flex; 
             flex-direction: column; 
@@ -75,6 +78,10 @@ export class AppShell extends LitElement {
         this._setupSystemListeners();
     }
 
+    disconnectedCallback() {
+        super.disconnectedCallback();
+    }
+
     /**
      * The first time the UI is actually ready (Shadow DOM is accessible).
      */
@@ -84,24 +91,26 @@ export class AppShell extends LitElement {
         this.router = new Router(outlet);
         
         // Initial route check
-        if (this.auth.value) {
-            this._handleAuthRouting(this.auth.value);
+        if (this.tokenAuth.value) {
+            this._handleAuthRouting(this.tokenAuth.value);
         }
     }
 
     _setupSystemListeners() {
-        // Handle BFcache (Back-Forward Cache) from your v2
+        // Handle BFcache (Back-Forward Cache)
         window.addEventListener('pageshow', (e) => {
             console.log("[AppShell] pageshow", e.persisted ? "(from cache)" : "(new)");
             if (e.persisted) {
                 // If coming back from cache, we might need to re-sync Managers
                 // or force a route check.
-                this._handleAuthRouting(this.auth.value);
+                this._handleAuthRouting(this.tokenAuth.value);
             }
         });
 
         document.addEventListener('visibilitychange', () => {
-            document.visibilityState === 'visible' ? this._onVisible() : this._onInvisible();
+            document.visibilityState === 'visible' 
+            ? console.log("[AppShell] Visible") 
+            : console.log("[AppShell] Invisible");
         });
 
         window.addEventListener('app:loader', (e) => {
@@ -144,20 +153,15 @@ export class AppShell extends LitElement {
         this.requestUpdate();
     }
 
-    _onVisible() { console.log("[AppShell] Visible"); }
-    _onInvisible() { console.log("[AppShell] Invisible"); }
-
     render() {
         return html`
             <div class="app-container">
                 <div id="outlet"></div>
 
-                ${this.loading.show ? html`
-                    <div class="loader-overlay">
-                        <sl-spinner style="font-size: 3rem;"></sl-spinner>
-                        <p style="color: white; margin-top: 1rem;">${this.loading.message}</p>
-                    </div>
-                ` : ''}
+                <loader-overlay 
+                    .show=${this.loading.show} 
+                    .message=${this.loading.message}>
+                </loader-overlay>
 
                 <sl-dialog 
                     label="${this.alert.title}" 
