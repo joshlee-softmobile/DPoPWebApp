@@ -9,9 +9,9 @@ class VaultManager {
     constructor() {
         this._isInitialised = false;
         this._db = null;
-        this._dbName = `${Identity.APP_SCHEM}db`;
-        this._keyStore = `${Identity.APP_SCHEM}keys`;    // structured-clone CryptoKeys
-        this._valueStore = `${Identity.APP_SCHEM}values`;  // encrypted strings
+        this._dbName = `${Identity.APP_ID}.db`;
+        this._keyStore = `${Identity.APP_ID}.keys`;    // structured-clone CryptoKeys
+        this._valueStore = `${Identity.APP_ID}.values`;  // encrypted strings
         this._masterKey = null;
         this._masterId = `${Identity.APP_SCHEM}MASTER`;
         this._rotationPromise = null;

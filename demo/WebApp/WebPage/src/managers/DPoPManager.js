@@ -2,7 +2,6 @@ import { vaultManager } from './VaultManager.js';
 import { Identity } from '../constants/Identity.js';
 import { Session } from "../constants/Session.js";
 import { stateHub } from '../helpers/EventHub.js';
-import { BehaviorSubject, distinctUntilChanged } from 'rxjs';
 
 class DPoPManager {
     constructor() {
