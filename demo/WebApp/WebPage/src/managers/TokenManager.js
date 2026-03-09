@@ -91,21 +91,29 @@ class TokenManager {
     /**
      * Internal check to prevent out-of-order access.
      */
-    _assertReady() {
-        if (!this._isInitialised) throw new Error("[TokenManager] Not initialized.");
-        // This prevents race conditions during SESSION_SYNC or TOKEN_SYNC
-        if (this._hydratingSlots.has(this._currentIdx)) throw new Error(`[TokenManager] Slot ${this._currentIdx} is hydrating.`);
+    async _assertReady() {
+        // Hard failure: The system isn't even configured yet.
+        if (!this._isInitialised) {
+            throw new Error("[TokenManager] Critical: Not initialized. Call init() first.");
+        }
+
+        // Adaptive Wait: If this specific index is hydrating, wait for it.
+        const pendingHydration = this._hydratingSlots.get(idx);
+        if (pendingHydration) {
+            console.debug(`[TokenManager] Awaiting hydration for slot ${idx}...`);
+            await pendingHydration;
+        }
     }
 
     // Explicit index-based accessors
-    getAccessToken() { 
-        this._assertReady();
+    async getAccessToken() { 
+        await this._assertReady();
         const idx = this._currentIdx;
         return this._sessionTokens[idx]?.at || null; 
     }
     
-    getRefreshToken() {
-        this._assertReady();
+    async getRefreshToken() {
+        await this._assertReady();
         const idx = this._currentIdx;
         return this._sessionTokens[idx]?.rt || null; 
     }

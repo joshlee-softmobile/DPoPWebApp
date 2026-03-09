@@ -88,7 +88,7 @@ class ApiManager {
         this._authApi.interceptors.request.use(
             async (config) => {
                 try {
-                    const token = tokenManager.getAccessToken();
+                    const token = await tokenManager.getAccessToken();
                     if (!token) {
                         this._updateAuthState(false);
                         throw new Error("No access token for this slot");
@@ -121,7 +121,7 @@ class ApiManager {
                 if (error.response?.status === 401 && !originalRequest._retry) {
                     originalRequest._retry = true;
 
-                    const currentToken = tokenManager.getAccessToken();
+                    const currentToken = await tokenManager.getAccessToken();
                     // 1. Check for Context Switch
                     if (currentToken !== null) {
                         if (originalRequest._sentWithToken !== currentToken) {
@@ -145,7 +145,7 @@ class ApiManager {
                     // 3. Start the Refresh and store the Promise
                     this._refreshPromise = (async () => {
                         try {
-                            const token = tokenManager.getRefreshToken();
+                            const token = await tokenManager.getRefreshToken();
                             if (!token) {
                                 this._updateAuthState(false);
                                 throw new Error("No refresh token for this slot");
