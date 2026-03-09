@@ -38,22 +38,23 @@ export class HomeViewModel extends BaseViewModel {
     }
 
     async _initDashboard() {
-        this._startHeartbeat();
+        await this._startHeartbeat();
         
         if (this._user$.value) return;
 
         try {
             const res = await apiManager.authApi.get('/user');
             this._user$.next(res.data);
-            this._startHeartbeat();
+            await this._startHeartbeat();
         } catch (err) {
             console.error("[HomeViewModel] 🚨 Profile Sync Failed", err);
         }
     }
 
-    _startHeartbeat() {
+    async _startHeartbeat() {
         this._stopHeartbeat();
-        const { atExpiry, rtExpiry } = tokenManager.getTokenExpiries;
+
+        const { atExpiry, rtExpiry } = await tokenManager.getTokenExpiries();
         
         if (rtExpiry <= 0) return;
 
@@ -118,7 +119,7 @@ export class HomeViewModel extends BaseViewModel {
             this._user$.next(res.data);
             
             // 3. Optional: Re-sync tokens if they changed, otherwise just restart timers
-            this._startHeartbeat();
+            await this._startHeartbeat();
 
             console.debug("[HomeViewModel] 🔄 Manual Data Successfully!");
         } catch (err) {
