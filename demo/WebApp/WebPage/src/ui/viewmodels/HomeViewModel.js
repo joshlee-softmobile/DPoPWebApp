@@ -6,6 +6,10 @@ import { tokenManager } from '../../managers/TokenManager.js';
 import { themeManager } from '../../managers/ThemeManager.js';
 import { Theme } from '../../constants/Theme.js';
 import { dpopManager } from '../../managers/DPoPManager.js';
+import { sessionManager } from '../../managers/SessionManager.js';
+import { vaultManager } from '../../managers/VaultManager.js';
+import { Identity } from '../../constants/Identity.js';
+import { Session } from '../../constants/Session.js';
 
 export class HomeViewModel extends BaseViewModel {
     constructor(host) {
@@ -16,6 +20,8 @@ export class HomeViewModel extends BaseViewModel {
         this._accessTime$ = new BehaviorSubject(-1);
         this._sessionTime$ = new BehaviorSubject(-1);
         this._loading$ = new BehaviorSubject(false);
+        this._addAccountLoading$ = new BehaviorSubject(false);
+        this._addAccountError$ = new BehaviorSubject(null);
 
         // 2. Bound UI State (The "Hubs" are now internal)
         this.user = this.bind(this._user$);
@@ -23,6 +29,11 @@ export class HomeViewModel extends BaseViewModel {
         this.sessionTime = this.bind(this._sessionTime$, -1);
         this.theme = this.bind(themeManager.theme$, themeManager.current);
         this.loading = this.bind(this._loading$, false);
+        this.addAccountLoading = this.bind(this._addAccountLoading$, false);
+        this.addAccountError = this.bind(this._addAccountError$, null);
+
+        this.registry = sessionManager.registry;
+        this.activeIdx = sessionManager.activeIdx;
 
         this._timerSub = null;
     }
@@ -91,15 +102,141 @@ export class HomeViewModel extends BaseViewModel {
         }
     }
 
+    switchAccount(idx) {
+        sessionManager.switchToIndex(idx);
+    }
+
+    async addAccountLogin(username, password) {
+        this._addAccountLoading$.next(true);
+        this._addAccountError$.next(null);
+        
+        try {
+            // Allocate new index
+            const emptyIdx = sessionManager.registry.findIndex(id => id === null);
+            if (emptyIdx === -1) throw new Error("Maximum account slots reached");
+            
+            // Temporarily hijack the Singletons to operate on the new slot
+            tokenManager._currentIdx = emptyIdx;
+            dpopManager._currentIdx = emptyIdx;
+
+            // This hits the interceptors nicely! dpopManager will auto-generate keys using _rotateKey() internally.
+            const res = await apiManager.tokenApi.post("/login", { username, password });
+            
+            const { accessToken, refreshToken } = res.data;
+            
+            // This natively saves tokens to Vault and updates the state stream gracefully!
+            await tokenManager.saveTokens(accessToken, refreshToken);
+
+            // Safely resolve SessionManager to allocate UUID without page reload triggering redirect
+            sessionManager._resolve(emptyIdx);
+
+            // Hot-switch to the new account context by swapping URL natively
+            window.location.hash = `#/${sessionManager.registry[emptyIdx]}/home`;
+            window.location.reload(); 
+            
+        } catch (e) {
+            console.error(e);
+
+            // Restore Singletons if failed
+            tokenManager._currentIdx = sessionManager.activeIdx;
+            dpopManager._currentIdx = sessionManager.activeIdx;
+
+            const msg = e.response?.data?.message || e.message || "Login Failed";
+            this._addAccountError$.next(msg);
+        } finally {
+            this._addAccountLoading$.next(false);
+        }
+    }
+
     async logout() {
         this._stopHeartbeat();
+        this._loading$.next(true);
+
+        const logoutIdx = sessionManager.activeIdx;
+        const registry = sessionManager.registry;
+
         try {
-            const rt = tokenManager.getRefreshToken();
-            if (rt) await apiManager.tokenApi.post("/logout", { refreshToken: rt });
+            const rt = await tokenManager.getRefreshToken();
+            if (rt) {
+                try {
+                    await apiManager.tokenApi.post("/logout", { refreshToken: rt });
+                } catch(e){
+                    console.warn("[HomeViewModel] Remote logout failed, proceeding with local cleanup");
+                }
+            }
+
+            // Clear current slot from Vault natively without triggering TokenManager streams
+            await Promise.all([
+                vaultManager.deleteKey(`${Identity.APP_SCHEM}PRIVATE[${logoutIdx}]`),
+                vaultManager.deleteKey(`${Identity.APP_SCHEM}PUBLIC[${logoutIdx}]`),
+                vaultManager.delete(`${Identity.APP_SCHEM}AT[${logoutIdx}]`),
+                vaultManager.delete(`${Identity.APP_SCHEM}RT[${logoutIdx}]`)
+            ]);
+            registry[logoutIdx] = null;
+            
+            // Shift everything above logoutIdx down by 1
+            for (let i = logoutIdx + 1; i < Session.MAX_COUNT; i++) {
+                if (registry[i]) {
+                    const toIdx = i - 1;
+                    registry[toIdx] = registry[i];
+                    registry[i] = null;
+                    
+                    // Move keys
+                    const priv = await vaultManager.loadKey(`${Identity.APP_SCHEM}PRIVATE[${i}]`);
+                    const pub = await vaultManager.loadKey(`${Identity.APP_SCHEM}PUBLIC[${i}]`);
+                    if (priv && pub) {
+                        await vaultManager.saveKey(`${Identity.APP_SCHEM}PRIVATE[${toIdx}]`, priv);
+                        await vaultManager.saveKey(`${Identity.APP_SCHEM}PUBLIC[${toIdx}]`, pub);
+                    }
+                    await vaultManager.deleteKey(`${Identity.APP_SCHEM}PRIVATE[${i}]`);
+                    await vaultManager.deleteKey(`${Identity.APP_SCHEM}PUBLIC[${i}]`);
+
+                    // Move tokens
+                    const at = await vaultManager.load(`${Identity.APP_SCHEM}AT[${i}]`);
+                    const rt_val = await vaultManager.load(`${Identity.APP_SCHEM}RT[${i}]`);
+                    if (at) await vaultManager.save(`${Identity.APP_SCHEM}AT[${toIdx}]`, at);
+                    if (rt_val) await vaultManager.save(`${Identity.APP_SCHEM}RT[${toIdx}]`, rt_val);
+                    
+                    await vaultManager.delete(`${Identity.APP_SCHEM}AT[${i}]`);
+                    await vaultManager.delete(`${Identity.APP_SCHEM}RT[${i}]`);
+                }
+            }
+            
+            // Save updated registry implicitly updating structure behind managers
+            localStorage.setItem(`${Identity.APP_SCHEM}REGISTRY`, JSON.stringify(registry));
+            
+            // Determine next slot systematically avoiding login dump
+            let nextIdx = null;
+            if (registry[logoutIdx]) {
+                nextIdx = logoutIdx; // The one that shifted down into the original current slot
+            } else if (logoutIdx > 0 && registry[logoutIdx - 1]) {
+                nextIdx = logoutIdx - 1; // The previous sequential slot
+            } else {
+                nextIdx = registry.findIndex(id => id !== null); // Extreme fallback
+            }
+
+            if (nextIdx !== -1 && nextIdx !== null) {
+                sessionManager._resolve(nextIdx);
+                window.location.hash = `#/${sessionManager.activeId}/home`;
+                window.location.reload();
+            } else {
+                sessionManager.activeIdx = null;
+                sessionManager.activeId = null;
+                sessionStorage.removeItem(`${Identity.APP_SCHEM}TAB_INDEX`);
+                localStorage.removeItem(`${Identity.APP_SCHEM}LAST_ACTIVE`);
+                
+                this._loading$.next(false);
+
+                // Evict Singletons from RAM cleanly to synchronously transition to LoginView
+                await dpopManager.clearKeys();
+                await tokenManager.clearTokens(true);
+            }
+            
+        } catch (err) {
+            console.error(err);
         } finally {
             this._user$.next(null);
-            await dpopManager.clearKeys();
-            await tokenManager.clearTokens(true);
+            this._loading$.next(false);
         }
     }
 

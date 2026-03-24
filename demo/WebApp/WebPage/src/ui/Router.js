@@ -1,3 +1,5 @@
+import { sessionManager } from '../managers/SessionManager.js';
+
 export class Router {
     constructor(container) {
         // This 'container' is the #outlet div from AppShell's Shadow DOM
@@ -41,21 +43,33 @@ export class Router {
     }
 
     _syncToHistory() {
-        const slug = window.location.hash.replace(/^#\/?/, '') || 'login';
-        this.navigate(slug);
+        let slug = window.location.hash.replace(/^#\/?/, '');
+        
+        let routeName = slug || 'login';
+        
+        const parts = slug.split('/');
+        if (parts.length > 0 && parts[0].startsWith('$')) {
+            routeName = parts.slice(1).join('/') || 'login';
+        }
+
+        this.navigate(routeName);
     }
 
     navigate(routeName) {
         const tagName = this.routes.get(routeName);
         if (!tagName) return;
 
-        // 1. Prevent redundant transactions (Don't reload if already there)
-        if (this.container.firstChild?.tagName.toLowerCase() === tagName) return;
+        const activeId = sessionManager.activeId;
+        const targetHash = activeId ? `#/${activeId}/${routeName}` : `#/${routeName}`;
 
         // 2. Update History (Intent URL)
-        if (window.location.hash !== `#/${routeName}`) {
-            window.location.hash = `#/${routeName}`;
+        // If the URL is missing the session ID or incorrect, we rewrite it to targetHash
+        if (window.location.hash !== targetHash) {
+            window.location.hash = targetHash;
         }
+
+        // 1. Prevent redundant transactions (Don't reload if already there)
+        if (this.container.firstChild?.tagName.toLowerCase() === tagName) return;
 
         // 3. Perform the Transaction
         // Clear the container (This automatically triggers 'disconnectedCallback' in the old view)

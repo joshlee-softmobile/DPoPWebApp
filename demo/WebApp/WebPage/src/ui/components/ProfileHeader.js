@@ -140,21 +140,10 @@ export class ProfileHeader extends LitElement {
         const selectedIdx = e.detail.item.value;
         
         if (selectedIdx === 'add-account') {
-            // Find first empty slot to "add" into
-            const emptyIdx = this.registry.findIndex(id => id === null);
-            if (emptyIdx !== -1) {
-                this._dispatchSwitch(emptyIdx);
-            } else {
-                this.dispatchEvent(new CustomEvent('app:dialog', {
-                    bubbles: true,
-                    composed: true,
-                    detail: { 
-                        title: 'Limit Reached', 
-                        message: 'Maximum account slots reached.',
-                        onClose: () => console.log('User acknowledged the limit error')
-                    }
-                }));
-            }
+            this.dispatchEvent(new CustomEvent('add-account-requested', {
+                bubbles: true,
+                composed: true
+            }));
         } else {
             const idx = parseInt(selectedIdx, 10);
             if (idx !== this.activeIdx) {
@@ -185,17 +174,22 @@ export class ProfileHeader extends LitElement {
                             <sl-avatar slot="trigger" image="${this.user.image}" style="--size: 4.5rem; cursor: pointer;"></sl-avatar>
                             <sl-menu @sl-select=${this._handleAccountSelect}>
                                 <sl-menu-label>My Accounts</sl-menu-label>
-                                ${this.registry.map((id, idx) => html`
-                                    <sl-menu-item .value="${idx.toString()}" ?disabled=${idx === this.activeIdx && id !== null}>
-                                        ${idx === this.activeIdx ? html`<sl-icon slot="prefix" name="dot" class="active-dot"></sl-icon>` : ''}
-                                        Account ${idx + 1}
-                                        ${id ? html`<sl-badge variant="neutral" pill>${id}</sl-badge>` : html`<sl-badge variant="warning" outline>Unused</sl-badge>`}
+                                ${this.registry.map((id, idx) => ({ id, idx }))
+                                    .filter(item => item.id !== null)
+                                    .map(item => html`
+                                    <sl-menu-item .value="${item.idx.toString()}" ?disabled=${item.idx === this.activeIdx}>
+                                        ${item.idx === this.activeIdx ? html`<sl-icon slot="prefix" name="dot" class="active-dot"></sl-icon>` : ''}
+                                        Account ${item.idx + 1}
+                                        <sl-badge variant="neutral" pill>${item.id}</sl-badge>
                                     </sl-menu-item>
                                 `)}
-                                <sl-divider></sl-divider>
-                                <sl-menu-item value="add-account">
-                                    <sl-icon slot="prefix" name="person-plus"></sl-icon> Add Account
-                                </sl-menu-item>
+                                
+                                ${this.registry.filter(id => id !== null).length < 10 ? html`
+                                    <sl-divider></sl-divider>
+                                    <sl-menu-item value="add-account">
+                                        <sl-icon slot="prefix" name="person-plus"></sl-icon> Add Account
+                                    </sl-menu-item>
+                                ` : ''}
                             </sl-menu>
                         </sl-dropdown>
                     </div>

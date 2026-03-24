@@ -44,10 +44,17 @@ class SessionManager {
      */
     switchToIndex(idx) {
         if (idx < 0 || idx >= Session.MAX_COUNT) return;
+        const isNew = !this.registry[idx];
         this._resolve(idx);
+        
         // Force a reload or route change to sync the URL
-        window.location.hash = `#/${this.activeId}/home`;
+        const route = isNew ? 'login' : 'home';
+        window.location.hash = `#/${this.activeId}/${route}`;
         window.location.reload(); 
+    }
+
+    get registry() {
+        return this._getRegistry();
     }
 
     _resolve(idx) {
