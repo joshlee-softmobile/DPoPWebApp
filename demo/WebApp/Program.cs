@@ -36,7 +36,8 @@ builder.Configuration["VersionInfo"] = versionInfo;
 var corsOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>() ?? [];
-Console.WriteLine($"Cors:AllowedOrigins: {string.Join(",", corsOrigins)}");
+var allowLocalhost = builder.Configuration.GetValue<bool>("Cors:AllowLocalhost");
+Console.WriteLine($"Cors:AllowedOrigins: {string.Join(",", corsOrigins)}, AllowLocalhost: {allowLocalhost}");
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", policy =>
@@ -54,6 +55,15 @@ builder.Services.AddCors(options =>
                 .AllowAnyMethod()
                 .AllowCredentials()
                 .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
+
+            if (allowLocalhost)
+            {
+                policy.SetIsOriginAllowed(origin =>
+                {
+                    var host = new Uri(origin).Host;
+                    return host == "localhost" || host == "127.0.0.1";
+                });
+            }
         }
     });
 });
