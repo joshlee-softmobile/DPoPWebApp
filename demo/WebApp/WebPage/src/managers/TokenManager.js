@@ -44,20 +44,60 @@ class TokenManager {
             }
         })();
 
-        // Listen for token updates (Local or Global)
         stateHub.watch('TOKEN_SYNC').subscribe(async (data) => {
             await this._hydrate(data.idx);
             console.debug(`[TokenManager] Token Sync complete for index ${data.idx}`);
         });
         
-        // Listen for session updates (Local or Global)
-        stateHub.hear('SESSION_SYNC').subscribe(async (data) => {
-            this._currentIdx = data.idx;
+        // SESSION_SYNC: Cross-tab notification only. Same-tab coordination is driven by AuthHelper.
+        stateHub.watch('SESSION_SYNC').subscribe(async (data) => {
             await this._hydrate(data.idx);
-            console.debug(`[TokenManager] Session Sync complete for index ${data.idx}`);
+            console.debug(`[TokenManager] Cross-tab session sync for index ${data.idx}`);
+        });
+
+        // SESSION_MOVE / SESSION_CLEAR: Cross-tab notification only.
+        stateHub.watch('SESSION_MOVE').subscribe(async (data) => {
+            const { fromIdx, toIdx } = data;
+            await this._moveTokens(fromIdx, toIdx);
+            console.debug(`[TokenManager] Cross-tab move: Slot ${fromIdx} -> ${toIdx}`);
+        });
+
+        stateHub.watch('SESSION_CLEAR').subscribe(async (data) => {
+            const { idx } = data;
+            await this._clearTokens(idx);
+            this._sessionTokens[idx] = null;
+            if (idx === this._currentIdx) this._updateAuthState();
+            console.debug(`[TokenManager] Cross-tab clear for slot ${idx}`);
         });
 
         return this._initPromise;
+    }
+
+    /**
+     * Directly set the active index. Called by AuthHelper for same-tab coordination.
+     * @param {boolean} silent - If true, suppresses the isAuthenticated$ emission during
+     *   hydration. Use this during mid-flow slot switches to avoid triggering AppShell
+     *   routing with a transient isAuth:false on an empty slot.
+     */
+    async setIndex(idx, silent = false) {
+        this._currentIdx = idx;
+        await this._hydrate(idx, silent);
+    }
+
+    /**
+     * Clears a specific slot (Vault + RAM). Called by AuthHelper during logout.
+     */
+    async clearSlot(idx) {
+        await this._clearTokens(idx);
+        this._sessionTokens[idx] = null;
+        if (idx === this._currentIdx) this._updateAuthState();
+    }
+
+    /**
+     * Moves tokens from one slot to another (Vault + RAM). Called by AuthHelper during account shift.
+     */
+    async moveSlot(fromIdx, toIdx) {
+        await this._moveTokens(fromIdx, toIdx);
     }
 
     async _loadTokens(idx) {
@@ -67,15 +107,15 @@ class TokenManager {
         ]);
     }
 
-    async _hydrate(idx) {
+    async _hydrate(idx, silent = false) {
         if (idx === undefined || idx === null) return;
         
         const hydrationTask = (async () => {
             try {
                 const [at, rt] = await this._loadTokens(idx);
                 this._sessionTokens[idx] = (at || rt) ? { at, rt } : null;
-                if (idx === this._currentIdx) {
-                    this._updateAuthState(); // Update stream
+                if (idx === this._currentIdx && !silent) {
+                    this._updateAuthState(); // Update stream (suppressed during slot switches)
                 }
             } catch (e) {
                 console.error(`[TokenManager] Hydration error for slot ${idx}`, e);
@@ -139,16 +179,32 @@ class TokenManager {
     
     async _saveTokens(idx, at, rt) {
         await Promise.all([
-            vaultManager.save(`${Identity.APP_SCHEM}AT[${idx}]`, at),
-            vaultManager.save(`${Identity.APP_SCHEM}RT[${idx}]`, rt)
+            at ? vaultManager.save(`${Identity.APP_SCHEM}AT[${idx}]`, at) : Promise.resolve(),
+            rt ? vaultManager.save(`${Identity.APP_SCHEM}RT[${idx}]`, rt) : Promise.resolve()
         ]);
+    }
+
+    async _moveTokens(fromIdx, toIdx) {
+        const tokens = this._sessionTokens[fromIdx];
+        if (tokens) {
+            await this._saveTokens(toIdx, tokens.at, tokens.rt);
+        }
+        await this._clearTokens(fromIdx);
+        
+        // Update RAM cache
+        this._sessionTokens[toIdx] = tokens;
+        this._sessionTokens[fromIdx] = null;
+
+        if (this._currentIdx === toIdx || this._currentIdx === fromIdx) {
+            this._updateAuthState();
+        }
     }
 
     async saveTokens(at, rt) {
         if (!at || !rt) {
             throw new Error("Missing AT or RT to be saved in Vault.");
         }
-        this._assertReady();
+        await this._assertReady(); // Bug 5 fix: must be awaited
         const idx = this._currentIdx;
         const was = this._sessionTokens[idx];
         this._sessionTokens[idx] = { at, rt };

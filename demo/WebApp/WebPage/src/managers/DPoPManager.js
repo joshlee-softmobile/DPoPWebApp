@@ -36,13 +36,57 @@ class DPoPManager {
             console.debug(`[DPoPManager] Key Sync complete for index ${data.idx}`);
         });
 
-        stateHub.hear('SESSION_SYNC').subscribe(async (data) => {
-            this._currentIdx = data.idx;
+        // SESSION_SYNC: Cross-tab notification only. Same-tab coordination is driven by AuthHelper.
+        stateHub.watch('SESSION_SYNC').subscribe(async (data) => {
             await this._hydrate(data.idx);
-            console.debug(`[DPoPManager] Session Sync complete for index ${data.idx}`);
+            console.debug(`[DPoPManager] Cross-tab session sync for index ${data.idx}`);
+        });
+
+        // SESSION_MOVE / SESSION_CLEAR: Cross-tab notification only.
+        stateHub.watch('SESSION_MOVE').subscribe(async (data) => {
+            const { fromIdx, toIdx } = data;
+            await this._moveKeys(fromIdx, toIdx);
+            console.debug(`[DPoPManager] Cross-tab move: Slot ${fromIdx} -> ${toIdx}`);
+        });
+
+        stateHub.watch('SESSION_CLEAR').subscribe(async (data) => {
+            const { idx } = data;
+            await this._clearKeys(idx);
+            this._sessionKeys[idx] = null;
+            console.debug(`[DPoPManager] Cross-tab clear for slot ${idx}`);
         });
 
         return this._initPromise;
+    }
+
+    /**
+     * Directly set the active index. Called by AuthHelper for same-tab coordination.
+     */
+    async setIndex(idx) {
+        this._currentIdx = idx;
+        await this._hydrate(idx);
+    }
+
+    /**
+     * Ensures a key pair exists for the current slot. Called by AuthHelper before login.
+     */
+    async ensureKeyPair() {
+        await this._shouldCreateKeyPair();
+    }
+
+    /**
+     * Clears a specific slot (Vault + RAM). Called by AuthHelper during logout.
+     */
+    async clearSlot(idx) {
+        await this._clearKeys(idx);
+        this._sessionKeys[idx] = null;
+    }
+
+    /**
+     * Moves keys from one slot to another (Vault + RAM). Called by AuthHelper during account shift.
+     */
+    async moveSlot(fromIdx, toIdx) {
+        await this._moveKeys(fromIdx, toIdx);
     }
 
     async _loadKeys(idx) {
@@ -145,6 +189,18 @@ class DPoPManager {
             vaultManager.deleteKey(`${Identity.APP_SCHEM}PRIVATE[${idx}]`),
             vaultManager.deleteKey(`${Identity.APP_SCHEM}PUBLIC[${idx}]`)
         ]);
+    }
+
+    async _moveKeys(fromIdx, toIdx) {
+        const kp = this._sessionKeys[fromIdx];
+        if (kp) {
+            await this._saveKeys(toIdx, kp.privateKey, kp.publicKey);
+        }
+        await this._clearKeys(fromIdx);
+        
+        // Update RAM cache
+        this._sessionKeys[toIdx] = kp;
+        this._sessionKeys[fromIdx] = null;
     }
 
     async clearKeys() {

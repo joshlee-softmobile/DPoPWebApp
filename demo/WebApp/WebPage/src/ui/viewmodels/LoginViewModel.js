@@ -5,6 +5,7 @@ import { tokenManager } from '../../managers/TokenManager.js';
 import { dpopManager } from '../../managers/DPoPManager.js';
 import { themeManager } from '../../managers/ThemeManager.js';
 import { sessionManager } from '../../managers/SessionManager.js';
+import { AuthHelper } from '../../helpers/AuthHelper.js';
 import { Theme } from '../../constants/Theme.js';
 
 export class LoginViewModel extends BaseViewModel {
@@ -32,26 +33,11 @@ export class LoginViewModel extends BaseViewModel {
         this._error$.next(null);
 
         try {
-            // If the app was soft-logged out to zero sessions, singletons unbind index state to null.
-            // We must re-bind an empty array slot correctly BEFORE the /login interceptor runs DPoP!
-            if (sessionManager.activeIdx === null) {
-                let emptyIdx = sessionManager.registry.findIndex(id => id === null);
-                if (emptyIdx === -1) emptyIdx = 0; // Fallback entirely
-                
-                // Sync the singletons identically to Add Account
-                tokenManager._currentIdx = emptyIdx;
-                dpopManager._currentIdx = emptyIdx;
-                sessionManager._resolve(emptyIdx);
-            }
-
-            const res = await apiManager.tokenApi.post("/login", { username, password });
-            const { accessToken, refreshToken } = res.data;
-
-            await tokenManager.saveTokens(accessToken, refreshToken);
-            // System usually reacts to token change via Router, 
-            // but we return success for local logic if needed.
+            // Outsource the multi-manager orchestration to the static helper
+            await AuthHelper.login(username, password);
             return true;
         } catch (err) {
+            console.error("[LoginViewModel] 🚨 Auth Flow Error:", err);
             const msg = err.response?.data?.message || err.message || "Login Failed";
             this._error$.next(msg);
             return false;

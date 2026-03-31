@@ -1,5 +1,5 @@
 import { LitElement, html, css } from 'lit';
-import { Subject, takeUntil, filter } from 'rxjs';
+import { Subject, takeUntil, filter, merge, distinctUntilChanged } from 'rxjs';
 import { apiManager } from '../managers/ApiManager.js';
 import { tokenManager } from '../managers/TokenManager.js';
 import { Router } from './Router.js';
@@ -104,17 +104,24 @@ export class AppShell extends LitElement {
         const outlet = this.shadowRoot.getElementById('outlet');
         this.router = new Router(outlet);
 
-        tokenManager.isAuthenticated$
-            .pipe(takeUntil(this._destroy$))
-            .subscribe(state => {
-                this._handleAuthRouting(state)
-            });
+        // Single unified auth routing stream.
+        // tokenManager is the primary routing signal (boot state + token lifecycle).
+        // apiManager supplements it for 401-level revocation that bypasses the token refresh.
+        // 
+        // distinctUntilChanged deduplicates so _handleAuthRouting fires exactly ONCE per
+        // meaningful auth state change — even when both sources emit at the same time.
+        //
+        // Note: spurious isAuth:false during slot switches is already prevented at source
+        // by setIndex(idx, silent=true) in AuthHelper — no timing guards needed here.
+        this._authRouting$ = merge(
+            tokenManager.isAuthenticated$,
+            apiManager.isAuthenticated$.pipe(filter(state => state.isAuth !== null))
+        ).pipe(
+            distinctUntilChanged((a, b) => a.isAuth === b.isAuth && a.isLogout === b.isLogout),
+            takeUntil(this._destroy$)
+        );
 
-        apiManager.isAuthenticated$
-            .pipe(takeUntil(this._destroy$), filter(state => state.isAuth !== null))
-            .subscribe(state => { 
-                this._handleAuthRouting(state)
-            });
+        this._authRouting$.subscribe(state => this._handleAuthRouting(state));
     }
 
     updated(changedProperties) {

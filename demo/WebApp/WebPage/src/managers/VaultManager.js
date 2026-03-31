@@ -21,14 +21,31 @@ class VaultManager {
         if (this._db) return;
 
         this._db = await new Promise((resolve, reject) => {
-            const request = indexedDB.open(this._dbName, 1);
+            const request = indexedDB.open(this._dbName, 2); // v2: ensures onupgradeneeded runs if stores are missing
+
             request.onupgradeneeded = (e) => {
                 const db = e.target.result;
                 if (!db.objectStoreNames.contains(this._valueStore)) db.createObjectStore(this._valueStore);
                 if (!db.objectStoreNames.contains(this._keyStore)) db.createObjectStore(this._keyStore);
             };
-            request.onsuccess = (e) => resolve(e.target.result);
+
+            request.onsuccess = (e) => {
+                const db = e.target.result;
+                // Close this connection if another tab opens a newer version, 
+                // preventing it from being blocked.
+                db.onversionchange = () => {
+                    db.close();
+                    console.warn("[VaultManager] DB version changed — connection closed. Please reload.");
+                };
+                resolve(db);
+            };
+
             request.onerror = (e) => reject(e.target.error);
+
+            // Fired if another tab has the DB open and hasn't closed it yet.
+            request.onblocked = () => {
+                console.error("[VaultManager] DB upgrade blocked by another open tab. Please close all other tabs and reload.");
+            };
         });
 
         await this._prepareKey();
