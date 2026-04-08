@@ -32,7 +32,7 @@ public class PostController: BaseController
     }
     
     /// <summary>
-    /// Fetch User's own post
+    /// Fetch post by Keyword
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> Search([FromQuery] string keyword)
@@ -42,6 +42,17 @@ public class PostController: BaseController
         return Ok(result);
     }
     
+    /// <summary>
+    /// Fetch User's own post
+    /// </summary>
+    [HttpGet("user")]
+    public async Task<IActionResult> Fetch()
+    {
+        var result = await _service.GeAlltPosts(HttpContext);
+        
+        return Ok(result);
+    }
+
     /// <summary>
     /// 新增一筆貼文
     /// </summary>

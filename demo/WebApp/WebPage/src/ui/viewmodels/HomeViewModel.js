@@ -65,14 +65,28 @@ export class HomeViewModel extends BaseViewModel {
         if (this._user$.value) return;
 
         try {
-            const res = await apiManager.authApi.get('/user');
-            this._user$.next(res.data);
+
+            // Fire both requests at the same time
+            const [userRes, postRes] = await Promise.all([
+                apiManager.authApi.get('/user'),
+                apiManager.authApi.get('/post/user')
+            ]);
+            
+            // Update user state
+            this._user$.next(userRes.data);
+
+            // Log posts response
+            console.log("[HomeViewModel] 📦 Posts:", postRes.data);
+
+            // Continue with heartbeat
             await this._startHeartbeat();
             // Sync session state now that we know the session is established
             this._syncSession();
         } catch (err) {
             console.error("[HomeViewModel] 🚨 Profile Sync Failed", err);
         }
+
+
     }
 
     async _startHeartbeat() {
@@ -164,19 +178,31 @@ export class HomeViewModel extends BaseViewModel {
         if (this._loading$.value) return;
 
         console.debug("[HomeViewModel] 🔄 Manual Data Refresh...");
-        
+
         this._loading$.next(true);
 
         try {
-            const res = await apiManager.authApi.get('/user');
-            this._user$.next(res.data);
+            // Fire both requests at the same time
+            const [userRes, postRes] = await Promise.all([
+                apiManager.authApi.get('/user'),
+                apiManager.authApi.get('/post', { params: { keyword: '.' } })
+            ]);
+
+            // Update user state
+            this._user$.next(userRes.data);
+
+            // Log posts response
+            console.log("[HomeViewModel] 📦 Posts:", postRes.data);
+
+            // Continue with heartbeat
             await this._startHeartbeat();
 
-            console.debug("[HomeViewModel] 🔄 Manual Data Successfully!");
+            console.debug("[HomeViewModel] ✅ Manual Data Successfully!");
         } catch (err) {
             console.error("[HomeViewModel] 🚨 Reload Failed:", err);
         } finally {
             this._loading$.next(false);
         }
     }
+
 }

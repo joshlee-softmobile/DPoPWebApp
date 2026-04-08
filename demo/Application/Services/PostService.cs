@@ -12,6 +12,7 @@ public interface IPostService
 {
     public Task<object> GetPost(HttpContext context, int id);
     public Task<object> SearchPosts(HttpContext context, string keywords);
+    public Task<object> GeAlltPosts(HttpContext context);
     public Task<object> AddPost(HttpContext context, string title, string body);
     public Task<object> UpdatePost(int id, string title, string body);
     public Task<object> DeletePost(int id);
@@ -34,13 +35,18 @@ public class PostService: IPostService
     
     public async Task<object> SearchPosts(HttpContext context, string keywords)
     {
+        return await _dummy.FetchPosts(keywords);
+    }
+    
+    public async Task<object> GeAlltPosts(HttpContext context)
+    {
         var sub = context.GetItem<TokenPayload>()?.sub;
         int.TryParse(sub, out var userId);
         if (string.IsNullOrEmpty(sub))
         {
             throw new BadHttpRequestException("UserID Not Found");
         }
-        var result = await _dummy.FetchPosts(keywords);
+        var result = await _dummy.FetchUserPosts(userId);
         return result.posts.Where(p => p.userId == userId).ToList();
     }
 

@@ -57,6 +57,21 @@ public class DummyJsonAdapter : IDummyJsonAdapter
         return output ?? throw new ArgumentException("Post is not found!");
     }
     
+    public async Task<DummyPosts> FetchUserPosts(int userId)
+    {
+        https://dummyjson.com/posts/user/
+        var requestUri = $"/posts/user/{userId}";
+        var response = await _httpClient.GetAsync(requestUri);
+
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException($"Upstream error: {response.StatusCode}, with {userId}");
+
+        var json = await response.Content.ReadAsStringAsync();
+        var output = JsonSerializer.Deserialize<DummyPosts>(json, _jsonOptions);
+
+        return output ?? throw new ArgumentException("Post is not found!");
+    }
+    
     public async Task<DummyPosts> FetchPosts(string query)
     {
         var requestUri = $"/posts/search?q={Uri.EscapeDataString(query)}";
