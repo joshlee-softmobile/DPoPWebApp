@@ -58,6 +58,11 @@ export class HomeView extends BaseView {
             .grid-layout { grid-template-columns: repeat(4, 1fr); }
         }
 
+        /* Posts card spans 2 columns on wide layouts so the list is readable */
+        @media (min-width: 900px) {
+            .posts-wide { grid-column: span 2; }
+        }
+
         /* Make cards feel like native "tiles" */
         sl-card {
             border: none;
@@ -108,6 +113,7 @@ export class HomeView extends BaseView {
         const accessLeft = this.viewModel.accessTime.value;
         const sessionLeft = this.viewModel.sessionTime.value;
         const isDark = this.viewModel.theme.value === Theme.DARK;
+        const posts = this.viewModel.posts.value ?? [];
 
         if (!user) 
             return html`
@@ -192,6 +198,9 @@ export class HomeView extends BaseView {
                     <biometric-card .user=${user}></biometric-card>
                     <crypto-assets .user=${user}></crypto-assets>
                     <financial-slots .user=${user}></financial-slots>
+                    <div class="posts-wide">
+                        <user-posts-card .posts=${posts}></user-posts-card>
+                    </div>
                 </main>
             </div>
         `;

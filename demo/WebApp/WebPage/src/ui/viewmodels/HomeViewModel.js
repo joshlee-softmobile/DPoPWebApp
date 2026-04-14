@@ -11,9 +11,10 @@ import { AuthHelper } from '../../helpers/AuthHelper.js';
 export class HomeViewModel extends BaseViewModel {
     constructor(host) {
         super(host);
-        
+
         // 1. Private Subjects (Sources)
         this._user$ = new BehaviorSubject(null);
+        this._posts$ = new BehaviorSubject(null);
         this._accessTime$ = new BehaviorSubject(-1);
         this._sessionTime$ = new BehaviorSubject(-1);
         this._loading$ = new BehaviorSubject(false);
@@ -22,6 +23,7 @@ export class HomeViewModel extends BaseViewModel {
 
         // 2. Bound UI State (The "Hubs" are now internal)
         this.user = this.bind(this._user$);
+        this.posts = this.bind(this._posts$);
         this.accessTime = this.bind(this._accessTime$, -1);
         this.sessionTime = this.bind(this._sessionTime$, -1);
         this.theme = this.bind(themeManager.theme$, themeManager.current);
@@ -43,7 +45,7 @@ export class HomeViewModel extends BaseViewModel {
         super.hostConnected();
         this._initDashboard();
     }
-    
+
     toggleTheme() {
         const current = themeManager.current;
         themeManager.setTheme(current === Theme.DARK ? Theme.LIGHT : Theme.DARK);
@@ -61,7 +63,7 @@ export class HomeViewModel extends BaseViewModel {
 
     async _initDashboard() {
         await this._startHeartbeat();
-        
+
         if (this._user$.value) return;
 
         try {
@@ -71,12 +73,15 @@ export class HomeViewModel extends BaseViewModel {
                 apiManager.authApi.get('/user'),
                 apiManager.authApi.get('/post/user')
             ]);
-            
+
             // Update user state
             this._user$.next(userRes.data);
 
-            // Log posts response
-            console.log("[HomeViewModel] 📦 Posts:", postRes.data);
+            // Store posts (newest first by id)
+            const posts = Array.isArray(postRes.data)
+                ? [...postRes.data].sort((a, b) => b.id - a.id)
+                : [];
+            this._posts$.next(posts);
 
             // Continue with heartbeat
             await this._startHeartbeat();
@@ -93,7 +98,7 @@ export class HomeViewModel extends BaseViewModel {
         this._stopHeartbeat();
 
         const { atExpiry, rtExpiry } = await tokenManager.getTokenExpiries();
-        
+
         if (rtExpiry <= 0) return;
 
         this._timerSub = timer(0, 1000).pipe(
@@ -105,13 +110,13 @@ export class HomeViewModel extends BaseViewModel {
                 this._accessTime$.next(atLeft);
                 this._sessionTime$.next(rtLeft);
 
-                if (atLeft <= 0) 
+                if (atLeft <= 0)
                     console.warn("[HomeViewModel] 🚨 AccessToken Expired");
-                if (rtLeft <= 0) 
+                if (rtLeft <= 0)
                     console.warn("[HomeViewModel] 🚨 RefreshToken Expired");
             }),
             takeWhile(({ rtLeft }) => rtLeft >= 0, true),
-            takeUntil(this.destroy$) 
+            takeUntil(this.destroy$)
         ).subscribe();
     }
 
@@ -136,13 +141,13 @@ export class HomeViewModel extends BaseViewModel {
     async addAccountLogin(username, password) {
         this._addAccountLoading$.next(true);
         this._addAccountError$.next(null);
-        
+
         try {
             const result = await AuthHelper.addAccount(username, password);
-            
+
             // UI Layer handles redirection/reload
             window.location.hash = `#/${result.id}/home`;
-            window.location.reload(); 
+            window.location.reload();
         } catch (e) {
             console.error("[HomeViewModel] 🚨 Add Account Error:", e);
             const msg = e.response?.data?.message || e.message || "Add Account Failed";
@@ -158,7 +163,7 @@ export class HomeViewModel extends BaseViewModel {
 
         try {
             const outcome = await AuthHelper.logout();
-            
+
             // UI Layer handles redirection and singleton reset
             if (outcome.nextId) {
                 window.location.hash = `#/${outcome.nextId}/home`;
@@ -166,7 +171,7 @@ export class HomeViewModel extends BaseViewModel {
                 window.location.hash = `#/login`;
             }
             window.location.reload(); // Hard reload for clean singleton RAM reset
-            
+
         } catch (err) {
             console.error("[HomeViewModel] 🚨 Logout Flow Error:", err);
         } finally {
@@ -185,14 +190,17 @@ export class HomeViewModel extends BaseViewModel {
             // Fire both requests at the same time
             const [userRes, postRes] = await Promise.all([
                 apiManager.authApi.get('/user'),
-                apiManager.authApi.get('/post', { params: { keyword: '.' } })
+                apiManager.authApi.get('/post/user')
             ]);
 
             // Update user state
             this._user$.next(userRes.data);
 
-            // Log posts response
-            console.log("[HomeViewModel] 📦 Posts:", postRes.data);
+            // Store posts (newest first by id)
+            const posts = Array.isArray(postRes.data)
+                ? [...postRes.data].sort((a, b) => b.id - a.id)
+                : [];
+            this._posts$.next(posts);
 
             // Continue with heartbeat
             await this._startHeartbeat();

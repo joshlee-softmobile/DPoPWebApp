@@ -13,6 +13,7 @@ import { BiometricCard } from './ui/components/BiometricCard.js';
 import { FinancialSlots } from './ui/components/FinancialSlots.js';
 import { CryptoAssets } from './ui/components/CryptoAssets.js';
 import { LoaderOverlay } from './ui/components/LoaderOverlay.js';
+import { UserPostsCard } from './ui/components/UserPostsCard.js';
 
 const tags = {
     // Coere
@@ -28,6 +29,7 @@ const tags = {
     'financial-slots': FinancialSlots,
     'crypto-assets': CryptoAssets,
     'loader-overlay': LoaderOverlay,
+    'user-posts-card': UserPostsCard,
 };
 
 export const manifesto = () => {
