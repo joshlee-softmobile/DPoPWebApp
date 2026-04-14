@@ -12,6 +12,8 @@ export class BiometricCard extends LitElement {
             height: 100%;
             --width: 100%;
             border: none;
+            max-width: 100%;
+            overflow: hidden;
         }
 
         sl-card::part(base) {
@@ -25,7 +27,8 @@ export class BiometricCard extends LitElement {
 
         sl-card::part(body) {
             flex: 1 1 auto;
-            padding: var(--sl-spacing-large);
+            /* Reduced on mobile; overridden to large on wider screens */
+            padding: var(--sl-spacing-medium);
         }
 
         .header-title {

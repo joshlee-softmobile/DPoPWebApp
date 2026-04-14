@@ -11,8 +11,9 @@ export class CryptoAssets extends LitElement {
             width: 100%;
             height: 100%;
             --width: 100%;
-            /* Remove default Shoelace borders/shadows from the host */
             border: none;
+            max-width: 100%;
+            overflow: hidden;
         }
 
         /* This is the secret sauce: Targeting the actual 'box' inside Shoelace */

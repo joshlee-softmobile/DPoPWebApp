@@ -11,8 +11,10 @@ export class FinancialSlots extends LitElement {
             width: 100%;
             height: 100%;
             --width: 100%;
-            /* Remove default Shoelace borders/shadows from the host */
             border: none;
+            /* Prevent card from blowing past its column on narrow screens */
+            max-width: 100%;
+            overflow: hidden;
         }
 
         /* This is the secret sauce: Targeting the actual 'box' inside Shoelace */
@@ -93,12 +95,17 @@ export class FinancialSlots extends LitElement {
             letter-spacing: 2px;
             text-shadow: 0 2px 4px rgba(0,0,0,0.5);
             z-index: 1;
+            /* Safety: never overflow the card on tiny screens */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         /* Responsive Text using Container Queries */
-        @container (max-width: 300px) {
-            .card-number { font-size: 1rem; }
-            .card-holder { font-size: 0.7rem; }
+        @container (max-width: 340px) {
+            .card-number { font-size: 0.95rem; letter-spacing: 1px; }
+            .card-holder { font-size: 0.65rem; }
+            .credit-card { padding: 1rem; }
         }
 
         .card-footer { display: flex; justify-content: space-between; align-items: flex-end; z-index: 1; }

@@ -28,17 +28,26 @@ export class HomeView extends BaseView {
             padding-bottom: var(--safe-bottom);
         }
 
-        /* Native mobile usually has 16px (medium) padding. Desktop uses large. */
+        /* Native mobile: tight padding so cards breathe without overflowing 375px */
         .container { 
             max-width: 1400px; 
-            margin: 0 auto; 
-            padding: var(--sl-spacing-medium); 
+            margin: 0 auto;
+            /* xs: 12px each side → 375 - 24 = 351px usable */
+            padding: 12px;
+            box-sizing: border-box;
         }
 
         .grid-layout {
             display: grid;
-            gap: var(--sl-spacing-medium);
+            gap: 12px; /* tighter gap on xs */
             grid-template-columns: 1fr;
+        }
+
+        /* Critical: prevents any grid child from widening its column */
+        .grid-layout > * {
+            min-width: 0;
+            box-sizing: border-box;
+            width: 100%;
         }
 
         /* Responsive Adaptive Strategy */
@@ -52,15 +61,11 @@ export class HomeView extends BaseView {
 
         @media (min-width: 900px) {
             .grid-layout { grid-template-columns: repeat(3, 1fr); }
+            .posts-wide { grid-column: span 2; }
         }
 
         @media (min-width: 1200px) {
             .grid-layout { grid-template-columns: repeat(4, 1fr); }
-        }
-
-        /* Posts card spans 2 columns on wide layouts so the list is readable */
-        @media (min-width: 900px) {
-            .posts-wide { grid-column: span 2; }
         }
 
         /* Make cards feel like native "tiles" */

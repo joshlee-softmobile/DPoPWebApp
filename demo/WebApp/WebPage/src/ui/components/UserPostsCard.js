@@ -14,6 +14,8 @@ export class UserPostsCard extends LitElement {
             height: 100%;
             --width: 100%;
             border: none;
+            max-width: 100%;
+            overflow: hidden;
         }
 
         sl-card::part(base) {
