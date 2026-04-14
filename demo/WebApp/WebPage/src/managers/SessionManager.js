@@ -55,20 +55,16 @@ class SessionManager {
     }
 
     /**
-     * Forces the session to a specific index (Used for account switching)
+     * Forces the session to a specific index (Used for account switching).
+     * Only updates the registry and broadcasts SESSION_SYNC.
+     * Manager re-pointing (TokenManager, DPoPManager) is AuthHelper's responsibility.
      */
     switchToIndex(idx) {
         if (idx < 0 || idx >= Session.MAX_COUNT) return;
-        const isNew = !this.registry[idx];
         this._resolve(idx);
         
-        // Broadcast the switch so all managers update their internal context
+        // Broadcast the switch so ApiManager resets its refresh lock / expiry guard
         stateHub.cast('SESSION_SYNC', { idx });
-
-        // Force a reload or route change to sync the URL
-        const route = isNew ? 'login' : 'home';
-        window.location.hash = `#/${this.activeId}/${route}`;
-        window.location.reload(); 
     }
 
     /**

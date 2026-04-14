@@ -174,11 +174,11 @@ export class AppShell extends LitElement {
                 title: 'Session Expired',
                 message: 'Your session has timed out. Please log in again.',
                 onClose: () => {
-                    // Navigate to next valid session or login, then reload for clean singleton state.
+                    // Update hash so the Router builds the correct URL on navigate.
+                    // The isAuthenticated$ stream drives the actual routing — no reload needed.
                     window.location.hash = outcome.nextId
                         ? `#/${outcome.nextId}/home`
                         : '#/login';
-                    window.location.reload();
                 }
             }
         });

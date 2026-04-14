@@ -95,6 +95,27 @@ export class AuthHelper {
     }
 
     /**
+     * Switch the active account to a different already-authenticated slot.
+     *
+     * SessionManager updates the registry and broadcasts SESSION_SYNC.
+     * TokenManager and DPoPManager are then re-pointed so their _currentIdx is
+     * aligned with the new slot. TokenManager.setIndex() triggers _updateAuthState(),
+     * which emits isAuth:true on isAuthenticated$ → AppShell routes to home.
+     *
+     * @param {number} idx - The target slot index to switch to.
+     */
+    static async switchAccount(idx) {
+        // 1. Update registry + broadcast SESSION_SYNC (resets ApiManager locks)
+        sessionManager.switchToIndex(idx);
+
+        // 2. Re-point security managers at the new slot.
+        //    setIndex() calls _hydrate() which calls _updateAuthState() →
+        //    isAuthenticated$ emits → AppShell._handleAuthRouting() → Router.toHome()
+        await tokenManager.setIndex(idx);
+        await dpopManager.setIndex(idx);
+    }
+
+    /**
      * Logout and account shifting workflow.
      *
      * Reads the logout intent from SessionManager (written by HomeViewModel

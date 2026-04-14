@@ -5,6 +5,11 @@ export class Router {
         // This 'container' is the #outlet div from AppShell's Shadow DOM
         this.container = container;
         this.currentView = null;
+
+        // Track session identity alongside tag name so we can detect when the
+        // active account changes even though the route name stays the same (e.g.
+        // switching from home[A] to home[B] without going through login).
+        this._currentSessionId = null;
         
         // Register your "Fragments"
         this.routes = new Map([
@@ -62,23 +67,31 @@ export class Router {
         const activeId = sessionManager.activeId;
         const targetHash = activeId ? `#/${activeId}/${routeName}` : `#/${routeName}`;
 
-        // 2. Update History (Intent URL)
+        // Update History (Intent URL)
         // If the URL is missing the session ID or incorrect, we rewrite it to targetHash
         if (window.location.hash !== targetHash) {
             window.location.hash = targetHash;
         }
 
-        // 1. Prevent redundant transactions (Don't reload if already there)
-        if (this.container.firstChild?.tagName.toLowerCase() === tagName) return;
+        // Prevent redundant transactions — but only when BOTH the route tag AND the
+        // active session are unchanged. If the session identity changed (account switch,
+        // add-account success, or logout-to-survivor), we must replace the view so the
+        // new HomeViewModel initialises for the correct slot.
+        const sameTag     = this.container.firstChild?.tagName.toLowerCase() === tagName;
+        const sameSession = this._currentSessionId === activeId;
+        if (sameTag && sameSession) return;
 
-        // 3. Perform the Transaction
+        // Perform the Transaction
         // Clear the container (This automatically triggers 'disconnectedCallback' in the old view)
         this.container.innerHTML = '';
 
         // Create the new Custom Element View
         const newView = document.createElement(tagName);
-        
-        // 4. Attach to the DOM
+
+        // Record the session that owns this view instance
+        this._currentSessionId = activeId;
+
+        // Attach to the DOM
         this.container.appendChild(newView);
         this.currentView = newView;
     }
@@ -94,6 +107,7 @@ export class Router {
         if (this.container) {
             this.container.innerHTML = '';
             this.currentView = null;
+            this._currentSessionId = null;
         }
     }
 }

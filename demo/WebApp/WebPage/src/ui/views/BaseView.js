@@ -30,6 +30,8 @@ export class BaseView extends LitElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         console.debug(`[${this.constructor.name}] disconnectedCallback!`);
+        // Guarantee any global loader triggered by this view is dismissed when it unmounts
+        this.dispatchLoading(false);
     }
 
     firstUpdated() {

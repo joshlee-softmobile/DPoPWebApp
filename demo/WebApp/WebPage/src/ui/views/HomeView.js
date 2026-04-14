@@ -12,7 +12,12 @@ export class HomeView extends BaseView {
 
         this.viewModel.loading.source$.subscribe(isLoading => {
             // This triggers the event that AppShell is listening for
-            this.dispatchLoading(isLoading, "Page Reloading...");
+            this.dispatchLoading(isLoading, "Loading...");
+        });
+
+        // ViewModel signals us to close the add-account dialog before the view is replaced.
+        this.viewModel.dismissAddAccount.source$.subscribe(() => {
+            this.shadowRoot?.getElementById('addAccountDialog')?.hide();
         });
 
         this.testUsers = TestUsers;

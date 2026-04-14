@@ -1,4 +1,4 @@
-import { BehaviorSubject, timer, takeUntil } from 'rxjs';
+import { BehaviorSubject, timer, takeUntil, Subject } from 'rxjs';
 import { map, tap, takeWhile } from 'rxjs';
 import { BaseViewModel } from './BaseViewModel.js';
 import { apiManager } from '../../managers/ApiManager.js';
@@ -20,6 +20,7 @@ export class HomeViewModel extends BaseViewModel {
         this._loading$ = new BehaviorSubject(false);
         this._addAccountLoading$ = new BehaviorSubject(false);
         this._addAccountError$ = new BehaviorSubject(null);
+        this._dismissAddAccount$ = new Subject();
 
         // 2. Bound UI State (The "Hubs" are now internal)
         this.user = this.bind(this._user$);
@@ -30,6 +31,8 @@ export class HomeViewModel extends BaseViewModel {
         this.loading = this.bind(this._loading$, false);
         this.addAccountLoading = this.bind(this._addAccountLoading$, false);
         this.addAccountError = this.bind(this._addAccountError$, null);
+        
+        this.dismissAddAccount = this.bind(this._dismissAddAccount$, null);
 
         // registry and activeIdx are read eagerly here but re-synced after login.
         // They are plain properties (not Observable) because ProfileHeader treats
@@ -134,8 +137,10 @@ export class HomeViewModel extends BaseViewModel {
         }
     }
 
-    switchAccount(idx) {
-        sessionManager.switchToIndex(idx);
+    async switchAccount(idx) {
+        // Delegate entirely to AuthHelper so all managers are re-pointed atomically.
+        // AuthHelper emits isAuth:true on isAuthenticated$ → AppShell routes to home.
+        await AuthHelper.switchAccount(idx);
     }
 
     async addAccountLogin(username, password) {
@@ -145,9 +150,14 @@ export class HomeViewModel extends BaseViewModel {
         try {
             const result = await AuthHelper.addAccount(username, password);
 
-            // UI Layer handles redirection/reload
+            // Close the dialog before the view is replaced, for a clean UX transition.
+            // Emits on the action stream so the View can reactively hide the dialog.
+            this._dismissAddAccount$.next();
+
+            // AuthHelper.addAccount() calls tokenManager.saveTokens() which emits isAuth:true.
+            // AppShell._handleAuthRouting() picks that up and calls Router.toHome().
+            // The Router replaces the DOM node, so we only need the hash to be correct.
             window.location.hash = `#/${result.id}/home`;
-            window.location.reload();
         } catch (e) {
             console.error("[HomeViewModel] 🚨 Add Account Error:", e);
             const msg = e.response?.data?.message || e.message || "Add Account Failed";
@@ -175,13 +185,14 @@ export class HomeViewModel extends BaseViewModel {
 
             const outcome = await AuthHelper.logout();
 
-            // UI Layer handles redirection and singleton reset
+            // Set the correct hash so Router builds the right URL when it navigates.
+            // The auth stream (isAuth:true/false from tokenManager.setIndex) drives
+            // the actual navigation — no reload needed.
             if (outcome.nextId) {
                 window.location.hash = `#/${outcome.nextId}/home`;
             } else {
                 window.location.hash = `#/login`;
             }
-            window.location.reload(); // Hard reload for clean singleton RAM reset
 
         } catch (err) {
             console.error("[HomeViewModel] 🚨 Logout Flow Error:", err);
