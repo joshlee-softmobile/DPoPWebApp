@@ -23,6 +23,7 @@ export class LoginView extends BaseView {
     static styles = css`
         :host {
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
@@ -112,6 +113,22 @@ export class LoginView extends BaseView {
         sl-alert {
             margin-top: var(--sl-spacing-small);
         }
+
+        .version-badge {
+            margin-top: var(--sl-spacing-medium);
+            font-size: 0.7rem;
+            font-family: var(--sl-font-mono);
+            color: var(--sl-color-neutral-400);
+            letter-spacing: 0.04em;
+            text-align: center;
+            user-select: all;
+            opacity: 0.75;
+            transition: opacity 0.2s ease;
+        }
+
+        .version-badge:hover {
+            opacity: 1;
+        }
     `;
 
     _handleQuickSelect(e) {
@@ -131,6 +148,7 @@ export class LoginView extends BaseView {
         const isDark = this.viewModel.theme.value === Theme.DARK;
         const isLoading = this.viewModel.loading.value;
         const error = this.viewModel.error.value;
+        const version = this.viewModel.version.value;
 
         this.setAttribute('theme', isDark ? 'dark' : 'light');
 
@@ -200,6 +218,8 @@ export class LoginView extends BaseView {
                     Authenticate
                 </sl-button>
             </sl-card>
+
+            <div class="version-badge" ?hidden=${!version}>version: ${version?.substring(0, 7)}</div>
         `;
     }
 }

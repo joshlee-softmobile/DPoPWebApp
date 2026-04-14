@@ -15,13 +15,16 @@ public class TokenController: BaseController
 {
     private readonly IHostEnvironment _environment;
     private readonly ITokenService _service;
+    private readonly IConfiguration _configuration;
 
     public TokenController(
         IHostEnvironment environment,
-        ITokenService service)
+        ITokenService service,
+        IConfiguration configuration)
     {
         _environment = environment;
         _service = service;
+        _configuration = configuration;
     }
     
     /// <summary>

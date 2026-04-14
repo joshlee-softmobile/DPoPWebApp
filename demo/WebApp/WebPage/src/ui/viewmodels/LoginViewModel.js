@@ -15,17 +15,34 @@ export class LoginViewModel extends BaseViewModel {
         // 1. Private Subjects (The Sources)
         this._loading$ = new BehaviorSubject(false);
         this._error$ = new BehaviorSubject(null);
+        this._version$ = new BehaviorSubject(null);
 
         // 2. Bound UI State (The "Hubs" are now internal)
         // These properties update automatically and trigger this.host.requestUpdate()
         this.loading = this.bind(this._loading$, false);
         this.error = this.bind(this._error$, null);
         this.theme = this.bind(themeManager.theme$, themeManager.current);
+        this.version = this.bind(this._version$, null);
+    }
+
+    hostConnected() {
+        super.hostConnected();
+        this.fetchVersion();
     }
 
     toggleTheme() {
         const current = themeManager.current;
         themeManager.setTheme(current === Theme.DARK ? Theme.LIGHT : Theme.DARK);
+    }
+
+    async fetchVersion() {
+        try {
+            const res = await apiManager.anonApi.get('/Common/Version');
+            this._version$.next(res.data.version);
+        } catch (err) {
+            console.warn('[LoginViewModel] Could not fetch version:', err);
+            // Non-critical — silently swallow; version stays null
+        }
     }
 
     async login(username, password) {
