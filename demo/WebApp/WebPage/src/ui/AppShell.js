@@ -1,7 +1,8 @@
 import { LitElement, html, css } from 'lit';
-import { Subject, takeUntil, filter, merge, distinctUntilChanged } from 'rxjs';
+import { Subject, takeUntil } from 'rxjs';
 import { apiManager } from '../managers/ApiManager.js';
 import { tokenManager } from '../managers/TokenManager.js';
+import { AuthHelper } from '../helpers/AuthHelper.js';
 import { Router } from './Router.js';
 
 export class AppShell extends LitElement {
@@ -104,24 +105,19 @@ export class AppShell extends LitElement {
         const outlet = this.shadowRoot.getElementById('outlet');
         this.router = new Router(outlet);
 
-        // Single unified auth routing stream.
-        // tokenManager is the primary routing signal (boot state + token lifecycle).
-        // apiManager supplements it for 401-level revocation that bypasses the token refresh.
-        // 
-        // distinctUntilChanged deduplicates so _handleAuthRouting fires exactly ONCE per
-        // meaningful auth state change — even when both sources emit at the same time.
-        //
-        // Note: spurious isAuth:false during slot switches is already prevented at source
-        // by setIndex(idx, silent=true) in AuthHelper — no timing guards needed here.
-        this._authRouting$ = merge(
-            tokenManager.isAuthenticated$,
-            apiManager.isAuthenticated$.pipe(filter(state => state.isAuth !== null))
-        ).pipe(
-            distinctUntilChanged((a, b) => a.isAuth === b.isAuth && a.isLogout === b.isLogout),
-            takeUntil(this._destroy$)
-        );
+        // Stream 1 — Routing: handles boot state, login success, and normal logout.
+        // TokenManager is the single source of truth for isAuth.
+        // Dedup is already applied inside TokenManager.isAuthenticated$ (by token value).
+        tokenManager.isAuthenticated$
+            .pipe(takeUntil(this._destroy$))
+            .subscribe(state => this._handleAuthRouting(state));
 
-        this._authRouting$.subscribe(state => this._handleAuthRouting(state));
+        // Stream 2 — Session Expiry: fires when ApiManager's refresh flow fails.
+        // Intentionally separate from the routing stream — this drives dialog UX,
+        // not navigation. AuthHelper.revokeSession() handles all cross-manager cleanup.
+        apiManager.onSessionExpired$
+            .pipe(takeUntil(this._destroy$))
+            .subscribe(() => this._handleSessionExpiry());
     }
 
     updated(changedProperties) {
@@ -140,32 +136,52 @@ export class AppShell extends LitElement {
         window.removeEventListener('app:dialog', this._onDialog);
     }
 
-    _handleAuthRouting(authState) {
-        if (!this.router || !authState) return;
+    /**
+     * Handles routing driven by TokenManager's auth state.
+     * Covers: boot (null/empty slot), login success (isAuth:true), normal logout (isAuth:false).
+     * Session expiry dialog is handled separately by _handleSessionExpiry.
+     */
+    _handleAuthRouting({ isAuth }) {
+        if (!this.router) return;
+        console.log(`[AppShell] Routing -> isAuth: ${isAuth}`);
 
-        const { isAuth, _, isLogout } = authState;
-        console.log(`[AppShell] Routing logic -> isAuth: ${isAuth}`);
-        console.log(`[AppShell] Routing logic -> isLogout: ${isLogout}`);
-
-        if (isAuth === false) {
-            if (this.router.isAtSecuredView === true) {
-                if (isLogout) {
-                    this.router.toLogin();
-                } else {
-                    // Trigger the general dialog with a specific "Login" callback
-                    this._onDialog({
-                        detail: {
-                            title: 'Session Expired',
-                            message: 'Your session has timed out. Please log in again.',
-                            onClose: () => this.router.toLogin() 
-                        }
-                    });
-                }
-                return;
-            }
+        if (isAuth === true) {
+            this.router.toHome();
+        } else if (this.router.isAtSecuredView !== false) {
+            // isAtSecuredView: true  = at home view       → redirect to login
+            //                  null  = empty outlet (boot) → redirect to login
+            //                  false = already at login    → no-op (avoid redirect loop)
+            this.router.toLogin();
         }
-        
-        isAuth === true ? this.router.toHome() : this.router.toLogin();
+    }
+
+    /**
+     * Handles the session expiry scenario signalled by ApiManager.
+     * Delegates ALL cross-manager cleanup to AuthHelper.revokeSession(),
+     * then shows the dialog — AppShell only owns the UX here.
+     */
+    async _handleSessionExpiry() {
+        // Guard: if the dialog is already showing (e.g. double signal edge case), do nothing.
+        if (this.simpleAlert.show) return;
+
+        console.warn(`[AppShell] Session expired — running cleanup via AuthHelper.`);
+
+        // AuthHelper owns the heavy lifting: DPoP key clear, registry compaction.
+        const outcome = await AuthHelper.revokeSession();
+
+        this._onDialog({
+            detail: {
+                title: 'Session Expired',
+                message: 'Your session has timed out. Please log in again.',
+                onClose: () => {
+                    // Navigate to next valid session or login, then reload for clean singleton state.
+                    window.location.hash = outcome.nextId
+                        ? `#/${outcome.nextId}/home`
+                        : '#/login';
+                    window.location.reload();
+                }
+            }
+        });
     }
 
     render() {
@@ -191,7 +207,7 @@ export class AppShell extends LitElement {
         `;
     }
 
-/**
+    /**
      * 1. THE TRIGGER: User clicks OK or logic calls this.
      */
     _closeDialogTrigger() {

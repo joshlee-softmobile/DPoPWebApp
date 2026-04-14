@@ -1,7 +1,7 @@
 import { vaultManager } from './VaultManager.js';
 import { Identity } from '../constants/Identity.js';
 import { Session } from "../constants/Session.js";
-import { stateHub } from '../helpers/EventHub.js';
+import { stateHub } from '../objects/EventHub.js';
 
 class DPoPManager {
     constructor() {

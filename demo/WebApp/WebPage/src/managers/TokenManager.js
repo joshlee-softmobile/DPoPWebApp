@@ -1,8 +1,8 @@
 import { vaultManager } from './VaultManager.js';
 import { Identity } from '../constants/Identity.js';
 import { Session } from "../constants/Session.js";
-import { stateHub } from '../helpers/EventHub.js';
-import { BehaviorSubject, distinctUntilChanged, map } from 'rxjs';
+import { stateHub } from '../objects/EventHub.js';
+import { BehaviorSubject, distinctUntilChanged } from 'rxjs';
 
 /**
  * TokenManager.js
@@ -17,7 +17,7 @@ class TokenManager {
         this._sessionTokens = []; // RAM Cache: { index: { at, rt } }
 
         // Initialize Subject with a default state
-        this._authSubject = new BehaviorSubject({ isAuth: false, token: null, isLogout: false });
+        this._authSubject = new BehaviorSubject({ isAuth: false, token: null });
         // Expose the observable immediately so UI can subscribe anytime
         this.isAuthenticated$ = this._authSubject.asObservable().pipe(distinctUntilChanged((prev, curr) => prev.token === curr.token));
 
@@ -85,12 +85,14 @@ class TokenManager {
     }
 
     /**
-     * Clears a specific slot (Vault + RAM). Called by AuthHelper during logout.
+     * Clears a specific slot (Vault + RAM). Called by AuthHelper during logout / revokeSession.
+     * @param {boolean} silent - If true, suppresses the isAuthenticated$ emission.
+     *   Use during revokeSession so a spurious isAuth:false doesn't race the expiry dialog.
      */
-    async clearSlot(idx) {
+    async clearSlot(idx, silent = false) {
         await this._clearTokens(idx);
         this._sessionTokens[idx] = null;
-        if (idx === this._currentIdx) this._updateAuthState();
+        if (idx === this._currentIdx && !silent) this._updateAuthState();
     }
 
     /**
@@ -226,7 +228,7 @@ class TokenManager {
         ]);
     }
 
-    async clearTokens(isLogout = null) {
+    async clearTokens() {
         this._assertReady();
         const idx = this._currentIdx;
         const was = this._sessionTokens[idx];
@@ -235,21 +237,21 @@ class TokenManager {
             await this._clearTokens(idx);
             stateHub.cast('TOKEN_SYNC', { type: 'CLEAR', idx });
             console.debug(`[TokenManager] Clearance confirmed for index ${idx}`);
-            this._updateAuthState(isLogout); // Update stream
+            this._updateAuthState();
         } catch (err) {
             this._sessionTokens[idx] = was;     //rollback
             throw new Error("Failed to persist tokens safely to Vault.");
         }
     }
 
-    // Helper to update the stream
-    _updateAuthState(isLogout = null) {
+    // Helper to update the stream — emits { isAuth, token } only.
+    // Managers don't interpret why auth changed; that's AuthHelper's concern.
+    _updateAuthState() {
         const current = this._sessionTokens[this._currentIdx];
         const state = {
             isAuth: !!current?.at,
-            token: current?.at || null,
-            isLogout: isLogout
-        }
+            token:  current?.at || null,
+        };
         console.debug(`[TokenManager] AuthState:`, state);
         this._authSubject.next(state);
     }

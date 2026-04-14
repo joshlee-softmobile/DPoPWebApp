@@ -1,8 +1,8 @@
 import { tokenManager } from './TokenManager.js';
 import { dpopManager } from './DPoPManager.js';
-import { stateHub } from '../helpers/EventHub.js';
+import { stateHub } from '../objects/EventHub.js';
 import axios from 'axios';
-import { BehaviorSubject, distinctUntilChanged, map } from 'rxjs';
+import { Subject } from 'rxjs';
 
 /**
  * ApiManager.js
@@ -17,10 +17,14 @@ class ApiManager {
         this._isInitialised = false;
         this._refreshPromise = null;
 
-        // Initialize Subject with a default state
-        this._authSubject = new BehaviorSubject({ isAuth: null });
-        // Expose the observable immediately so UI can subscribe anytime
-        this.isAuthenticated$ = this._authSubject.asObservable();
+        // One-shot guard: prevents multiple expiry signals before the page reloads.
+        // Reset on SESSION_SYNC so a fresh login gets a clean slate.
+        this._sessionExpiredFired = false;
+
+        // Dedicated signal exposed to AppShell only.
+        // ApiManager's job is transport; cleanup is AuthHelper's job.
+        this._sessionExpiredSubject = new Subject();
+        this.onSessionExpired$ = this._sessionExpiredSubject.asObservable();
     }
 
     // 2. Expose via Getters
@@ -53,6 +57,8 @@ class ApiManager {
             console.log(`[ApiManager] Context Switch: Targeting Slot ${data.idx}`);
             // Clear the lock so a new account doesn't wait on an old account's refresh
             this._refreshPromise = null;
+            // Reset the one-shot guard so a fresh session can signal expiry if needed
+            this._sessionExpiredFired = false;
         });
 
         this._isInitialised = true;
@@ -90,7 +96,9 @@ class ApiManager {
                 try {
                     const token = await tokenManager.getAccessToken();
                     if (!token) {
-                        this._updateAuthState(false);
+                        // No token in vault — session is already dead.
+                        // Signal expiry so AppShell can show the dialog and trigger cleanup.
+                        this._signalSessionExpired();
                         throw new Error("No access token for this slot");
                     }
                     config.headers.Authorization = `DPoP ${token}`;
@@ -147,7 +155,9 @@ class ApiManager {
                         try {
                             const token = await tokenManager.getRefreshToken();
                             if (!token) {
-                                this._updateAuthState(false);
+                                // Refresh token is missing — session is unrecoverable.
+                                // Signal expiry; AuthHelper.revokeSession() handles all cleanup.
+                                this._signalSessionExpired();
                                 throw new Error("No refresh token for this slot");
                             }
                             console.log(`[ApiManager] Refreshing token chain...`);
@@ -163,7 +173,9 @@ class ApiManager {
                             return accessToken; 
                         } catch (err) {
                             console.log(`[ApiManager] Refreshing token failed!`);
-                            await tokenManager.clearTokens();
+                            // Signal expiry once; AppShell delegates cleanup to AuthHelper.
+                            // No token clearing here — that's AuthHelper.revokeSession()'s job.
+                            this._signalSessionExpired();
                             throw err;
                         } finally {
                             // Release the lock so future 401s (much later) can refresh again
@@ -186,13 +198,16 @@ class ApiManager {
         );
     }
 
-    // Helper to update the stream
-    _updateAuthState(isAuth) {
-        const state = {
-            isAuth: isAuth,
-        }
-        console.debug(`[ApiManager] AuthState:`, state);
-        this._authSubject.next(state);
+    /**
+     * Signals a terminal session failure to AppShell.
+     * One-shot per session lifetime — the guard prevents duplicate signals
+     * from concurrent 401s that all fail after a single bad refresh attempt.
+     */
+    _signalSessionExpired() {
+        if (this._sessionExpiredFired) return;
+        this._sessionExpiredFired = true;
+        console.warn(`[ApiManager] Session expired — signalling AppShell.`);
+        this._sessionExpiredSubject.next();
     }
 }
 

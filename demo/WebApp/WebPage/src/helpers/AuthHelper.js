@@ -2,7 +2,7 @@ import { apiManager } from '../managers/ApiManager.js';
 import { tokenManager } from '../managers/TokenManager.js';
 import { dpopManager } from '../managers/DPoPManager.js';
 import { sessionManager } from '../managers/SessionManager.js';
-import { stateHub } from './EventHub.js';
+import { stateHub } from '../objects/EventHub.js';
 
 /**
  * AuthHelper.js
@@ -144,6 +144,55 @@ export class AuthHelper {
             await tokenManager.setIndex(outcome.nextIdx);
             await dpopManager.setIndex(outcome.nextIdx);
         }
+
+        return { nextId: outcome.nextId, nextIdx: outcome.nextIdx };
+    }
+
+    /**
+     * Revoke a session terminated server-side (refresh token expired / rejected).
+     *
+     * Differs from logout():
+     *   - Skips the remote logout call (server already invalidated the session).
+     *   - Skips vault token clear (tokens were never persisted after the failed refresh;
+     *     the slot is already empty).  We still call clearSlot(silent=true) to sync
+     *     the RAM cache without emitting a spurious isAuth:false that would race
+     *     the expiry dialog in AppShell.
+     *
+     * @returns {{ nextId: string|null, nextIdx: number|null }}
+     */
+    static async revokeSession() {
+        const logoutIdx = sessionManager.activeIdx;
+        // Idempotency guard: if there's no active session, nothing to clean up.
+        if (logoutIdx === null) return { nextId: null, nextIdx: null };
+
+        // 1. Sync RAM cache silently — tokens gone from vault already.
+        //    silent=true: suppresses isAuth:false emission so the expiry dialog
+        //    is the only UX event, not a competing router.toLogin() call.
+        await tokenManager.clearSlot(logoutIdx, true);
+
+        // 2. Clear orphaned DPoP keys for this slot.
+        await dpopManager.clearSlot(logoutIdx);
+
+        // 3. Compute compaction moves (same algorithm as logout).
+        const registry = sessionManager.registry;
+        const moves = [];
+        let writeIdx = logoutIdx;
+        for (let i = logoutIdx + 1; i < registry.length; i++) {
+            if (registry[i]) {
+                moves.push({ fromIdx: i, toIdx: writeIdx });
+                writeIdx++;
+            }
+        }
+
+        // 4. Apply vault migrations in order (awaited, ordered — same as logout).
+        for (const { fromIdx, toIdx } of moves) {
+            await tokenManager.moveSlot(fromIdx, toIdx);
+            await dpopManager.moveSlot(fromIdx, toIdx);
+        }
+
+        // 5. Update registry + broadcast cross-tab compaction events.
+        //    This removes the stale session ID and frees the slot.
+        const outcome = sessionManager.removeAccount(logoutIdx);
 
         return { nextId: outcome.nextId, nextIdx: outcome.nextIdx };
     }
