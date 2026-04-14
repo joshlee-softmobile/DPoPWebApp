@@ -127,9 +127,25 @@ export class ProfileHeader extends LitElement {
     }
 
     _handleLogoutClick() {
+        // Carry the active slot's index so HomeViewModel can signal the correct
+        // logout target without needing to re-read any manager state.
         this.dispatchEvent(new CustomEvent('logout-requested', {
             bubbles: true,
-            composed: true
+            composed: true,
+            detail: { index: this.activeIdx }
+        }));
+    }
+
+    /**
+     * Per-account logout from the account-switcher dropdown.
+     * Stops the sl-menu select propagation so only the logout fires.
+     */
+    _handleLogoutAccount(e, idx) {
+        e.stopPropagation();
+        this.dispatchEvent(new CustomEvent('logout-requested', {
+            bubbles: true,
+            composed: true,
+            detail: { index: idx }
         }));
     }
 
@@ -181,6 +197,13 @@ export class ProfileHeader extends LitElement {
                                         ${item.idx === this.activeIdx ? html`<sl-icon slot="prefix" name="dot" class="active-dot"></sl-icon>` : ''}
                                         Account ${item.idx + 1}
                                         <sl-badge variant="neutral" pill>${item.id}</sl-badge>
+                                        <sl-icon-button
+                                            slot="suffix"
+                                            name="box-arrow-right"
+                                            title="Logout Account ${item.idx + 1}"
+                                            style="color: var(--sl-color-danger-600);"
+                                            @click=${(e) => this._handleLogoutAccount(e, item.idx)}>
+                                        </sl-icon-button>
                                     </sl-menu-item>
                                 `)}
                                 

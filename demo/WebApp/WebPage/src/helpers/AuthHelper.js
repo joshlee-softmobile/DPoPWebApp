@@ -96,30 +96,50 @@ export class AuthHelper {
 
     /**
      * Logout and account shifting workflow.
-     * AuthHelper drives all async Vault operations BEFORE SessionManager updates the registry,
-     * so there are no race conditions between navigation and storage.
+     *
+     * Reads the logout intent from SessionManager (written by HomeViewModel
+     * immediately before this call). If the intent is valid, only that slot
+     * is removed. If the intent is missing or invalid, local state is
+     * considered unreliable → nuclear logout of ALL sessions.
+     *
+     * @returns {{ nextId: string|null, nextIdx: number|null }}
      */
     static async logout() {
-        const logoutIdx = sessionManager.activeIdx;
-        if (logoutIdx === null) return { nextId: null, nextIdx: null };
+        // 1. Read + clear the intent key atomically (SessionManager owns storage).
+        const logoutIdx = sessionManager.readAndClearLogoutTarget();
 
-        // 1. Best effort remote logout
-        try {
-            const rt = await tokenManager.getRefreshToken();
-            if (rt) {
-                await apiManager.tokenApi.post("/logout", { refreshToken: rt }).catch(() => {});
-            }
-        } catch (e) {
-            console.debug("[AuthHelper] Remote logout skipped.");
+        // 2. Nuclear path: intent missing or tampered → local state not reliable.
+        if (logoutIdx === null) {
+            console.warn('[AuthHelper] Logout intent invalid → nuclear logout.');
+            return AuthHelper._nuclearLogout();
         }
 
-        // 2. Clear the logged-out slot's Vault data directly (awaited)
-        await tokenManager.clearSlot(logoutIdx);
+        // 3. Best-effort remote logout for the target slot.
+        try {
+            const previousIdx = sessionManager.activeIdx;
+            // Silently point TokenManager at the target slot to read its RT,
+            // then restore the current active slot immediately after.
+            await tokenManager.setIndex(logoutIdx, true);
+            const rt = await tokenManager.getRefreshToken();
+            if (rt) {
+                await apiManager.tokenApi.post('/logout', { refreshToken: rt }).catch(() => {});
+            }
+            if (previousIdx !== null && previousIdx !== logoutIdx) {
+                await tokenManager.setIndex(previousIdx, true);
+            }
+        } catch (e) {
+            console.debug('[AuthHelper] Remote logout skipped.');
+        }
+
+        // 4. Clear the target slot's Vault data.
+        //    silent=true when other sessions survive → suppresses the isAuth:false
+        //    that would otherwise push AppShell to toLogin() prematurely.
+        const registry = sessionManager.registry;
+        const hasSurvivor = registry.some((id, i) => id !== null && i !== logoutIdx);
+        await tokenManager.clearSlot(logoutIdx, hasSurvivor /* silent */);
         await dpopManager.clearSlot(logoutIdx);
 
-        // 3. Compute the compaction moves BEFORE handing off to SessionManager
-        //    so we can await the Vault migrations in order.
-        const registry = sessionManager.registry;
+        // 5. Compute compaction moves BEFORE handing off to SessionManager.
         const moves = [];
         let writeIdx = logoutIdx;
         for (let i = logoutIdx + 1; i < registry.length; i++) {
@@ -129,23 +149,40 @@ export class AuthHelper {
             }
         }
 
-        // 4. Perform all Vault migrations sequentially (awaited, ordered)
+        // 6. Perform all Vault migrations sequentially (awaited, ordered).
         for (const { fromIdx, toIdx } of moves) {
             await tokenManager.moveSlot(fromIdx, toIdx);
             await dpopManager.moveSlot(fromIdx, toIdx);
         }
 
-        // 5. ONLY AFTER all Vault work is done, update the registry + broadcast cross-tab
-        //    SessionManager.removeAccount now just handles: registry update + cross-tab events.
+        // 7. Registry update + cross-tab broadcast.
         const outcome = sessionManager.removeAccount(logoutIdx);
 
-        // 6. Update active manager pointers to the next slot (or null)
+        // 8. Point active managers at the surviving slot (or null).
         if (outcome.nextIdx !== null) {
             await tokenManager.setIndex(outcome.nextIdx);
             await dpopManager.setIndex(outcome.nextIdx);
         }
 
         return { nextId: outcome.nextId, nextIdx: outcome.nextIdx };
+    }
+
+    /**
+     * Nuclear logout: clears EVERY session slot.
+     * Triggered when the sessionStorage intent key is missing or refers to a
+     * non-existent slot — indicating local state cannot be trusted.
+     * @returns {{ nextId: null, nextIdx: null }}
+     */
+    static async _nuclearLogout() {
+        const registry = sessionManager.registry;
+        for (let i = 0; i < registry.length; i++) {
+            if (registry[i] !== null) {
+                await tokenManager.clearSlot(i, true); // silent throughout
+                await dpopManager.clearSlot(i);
+            }
+        }
+        sessionManager.clearRegistry();
+        return { nextId: null, nextIdx: null };
     }
 
     /**

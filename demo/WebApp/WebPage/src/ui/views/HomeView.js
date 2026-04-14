@@ -138,7 +138,7 @@ export class HomeView extends BaseView {
                     .registry=${this.viewModel.registry}
                     .activeIdx=${this.viewModel.activeIdx}
                     @toggle-theme=${() => this.viewModel.toggleTheme()}
-                    @logout-requested=${() => this.viewModel.logout()}
+                    @logout-requested=${(e) => this.viewModel.logout(e.detail?.index)}
                     @reload-requested=${() => this.viewModel.reloadPage()}
                     @account-switch=${(e) => this.viewModel.switchAccount(e.detail.index)}
                     @add-account-requested=${() => this.shadowRoot.getElementById('addAccountDialog').show()}

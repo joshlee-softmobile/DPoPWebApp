@@ -127,6 +127,54 @@ class SessionManager {
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // Logout Intent Channel
+    // Owned exclusively here so all sessionStorage access is centralised.
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Records the slot the user intends to log out.
+     * Must be called by HomeViewModel immediately before AuthHelper.logout().
+     * @param {number} idx - The slot index to log out.
+     */
+    setLogoutTarget(idx) {
+        sessionStorage.setItem(Session.LOGOUT_TARGET_KEY, String(idx));
+        console.debug(`[SessionManager] Logout target set: slot ${idx}`);
+    }
+
+    /**
+     * Reads and atomically clears the logout intent key.
+     * Called once by AuthHelper.logout() at the start of the logout flow.
+     *
+     * @returns {number|null} The valid target slot index, or null if the key
+     *   was missing, malformed, or refers to an empty/non-existent slot.
+     *   A null return signals AuthHelper to perform a nuclear logout.
+     */
+    readAndClearLogoutTarget() {
+        const raw = sessionStorage.getItem(Session.LOGOUT_TARGET_KEY);
+        sessionStorage.removeItem(Session.LOGOUT_TARGET_KEY);
+
+        if (raw === null || raw === '') {
+            console.warn('[SessionManager] Logout intent key missing.');
+            return null;
+        }
+
+        const idx = parseInt(raw, 10);
+        const registry = this._getRegistry();
+        const isValid = !isNaN(idx)
+            && idx >= 0
+            && idx < registry.length
+            && registry[idx] !== null;
+
+        if (!isValid) {
+            console.warn(`[SessionManager] Logout intent idx=${raw} is invalid or points to empty slot.`);
+            return null;
+        }
+
+        console.debug(`[SessionManager] Logout target read + cleared: slot ${idx}`);
+        return idx;
+    }
+
     /**
      * Clears the entire registry. Called by AuthHelper before a fresh login
      * when stale data is detected (all slots full but no valid session).

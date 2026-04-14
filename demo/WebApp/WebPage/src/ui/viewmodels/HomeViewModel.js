@@ -157,11 +157,22 @@ export class HomeViewModel extends BaseViewModel {
         }
     }
 
-    async logout() {
+    async logout(targetIdx) {
         this._stopHeartbeat();
         this._loading$.next(true);
 
         try {
+            // Resolve the target: use the provided index, or fall back to the
+            // currently active session if no specific account was indicated.
+            const idx = (targetIdx !== undefined && targetIdx !== null)
+                ? targetIdx
+                : sessionManager.activeIdx;
+
+            // Signal the intent through SessionManager (it owns all sessionStorage).
+            // AuthHelper.logout() will read + clear this key. If it is missing
+            // at that point, AuthHelper will perform a nuclear logout.
+            sessionManager.setLogoutTarget(idx);
+
             const outcome = await AuthHelper.logout();
 
             // UI Layer handles redirection and singleton reset
