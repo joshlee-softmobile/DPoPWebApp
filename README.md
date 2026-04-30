@@ -56,3 +56,7 @@ Managers are framework-agnostic singletons. They handle the "Work" (API calls, S
 A minimal entry point that connects the **Manifest** to the **Bootstrap**. It acts as the final gatekeeper, ensuring the environment is ready before a single pixel is rendered.
 
 ---
+
+# Federated Repo Network
+- [DPoP-Demo-Nuxt-3-](https://github.com/YunnnaChen/DPoP-Demo-Nuxt-3-)
+- ……
