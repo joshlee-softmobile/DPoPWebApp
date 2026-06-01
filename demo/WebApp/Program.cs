@@ -61,7 +61,7 @@ builder.Services.AddCors(options =>
                 policy.SetIsOriginAllowed(origin =>
                 {
                     var host = new Uri(origin).Host;
-                    return host == "localhost" || host == "127.0.0.1";
+                    return host is "localhost" or "127.0.0.1";
                 });
             }
         }
