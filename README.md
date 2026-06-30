@@ -74,20 +74,20 @@ The frontend is a Vite-powered application:
 
 ---
 
-## 🌐 Environment & API Base Address (Approach 1)
+## 🌐 Environment & API Base Address
 
 Since the frontend is a Client-Side Rendered (CSR) SPA, it uses **build-time environment variables** to bind to different API endpoints based on the deployment mode.
 
 ### 📝 Configuration Files
-* [web/.env.development](file:///Users/softmobile/Documents/Git/GitHub/joshlee-softmobile/DPoPWebApp/web/.env.development): Points to `http://localhost:54321/api` (Local Dev Backend).
-* [web/.env.staging](file:///Users/softmobile/Documents/Git/GitHub/joshlee-softmobile/DPoPWebApp/web/.env.staging): Points to the staging API (`https://dpopwebapp.runasp.net/api`).
-* [web/.env.production](file:///Users/softmobile/Documents/Git/GitHub/joshlee-softmobile/DPoPWebApp/web/.env.production): Points to the production API.
+* [web/.env.development](./web/.env.development): Points to `http://localhost:54321/api` (Local Dev Backend).
+* [web/.env.staging](./web/.env.staging): Points to the staging API (`https://dpopwebapp.runasp.net/api`).
+* [web/.env.production](./web/.env.production): Points to the production API.
 
 > [!IMPORTANT]
 > **DPoP HTU Validation Rule**
 > The DPoP protocol requires the HTTP Target URI (`htu` claim) to match the API endpoint *exactly*.
 > - In development, `VITE_API_BASE_URL` in `.env.development` must point to the absolute URL of the API server (`http://localhost:54321/api`) so that the generated DPoP token's host matches the API server's host.
-> - If you configure a relative path (e.g., `/api` via Vite Proxy forwarding), you must also update the backend `BaseUrl` configured in [api/WebApp/appsettings.json](file:///Users/softmobile/Documents/Git/GitHub/joshlee-softmobile/DPoPWebApp/api/WebApp/appsettings.json) under `JwtAuthEnvironment:Test:BaseUrl` to match the frontend origin (`http://localhost:3000`).
+> - If you configure a relative path (e.g., `/api` via Vite Proxy forwarding), you must also update the backend `BaseUrl` configured in [api/WebApp/appsettings.json](./api/WebApp/appsettings.json) under `JwtAuthEnvironment:Test:BaseUrl` to match the frontend origin (`http://localhost:3000`).
 
 ### 📦 Building for Different Environments
 Vite loads environment variables based on the `--mode` flag. The CI/CD workflow builds appropriate bundles:
