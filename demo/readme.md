@@ -1,3 +1,0 @@
-# Clean Architecture
-
-![](./CleanArchitecture.webp)

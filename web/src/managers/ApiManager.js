@@ -11,9 +11,10 @@ import { Subject } from 'rxjs';
 
 class ApiManager {
     constructor() {
-        // Example: derive base URL dynamically
+        // Example: derive base URL dynamically, supporting Vite env variables
         const origin = window.location.origin;
-        this._BASE_URL = `${origin}/api`;
+        const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+        this._BASE_URL = rawBaseUrl.startsWith('http') ? rawBaseUrl : `${origin}${rawBaseUrl}`;
         this._isInitialised = false;
         this._refreshPromise = null;
 

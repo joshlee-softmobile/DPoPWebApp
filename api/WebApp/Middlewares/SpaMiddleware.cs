@@ -1,5 +1,10 @@
 namespace WebApp.Middlewares;
 
+/// <summary>
+/// SPA Middleware. Note: This middleware is currently UNUSED because the application
+/// has been refactored to use a decoupled client-side rendered (CSR) architecture under /web.
+/// It is kept here for reference or fallback hosting purposes.
+/// </summary>
 public class SpaMiddleware
 {
     private readonly RequestDelegate _next;

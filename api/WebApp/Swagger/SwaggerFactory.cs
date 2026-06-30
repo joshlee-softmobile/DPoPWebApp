@@ -81,7 +81,7 @@ public static class SwaggerFactory
     public static void Config(SwaggerUIOptions options)
     {
         options.DocumentTitle = "Josh Side Project";
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Josh Side Project");
+        options.SwaggerEndpoint("v1/swagger.json", "Josh Side Project");
     }
 
     private static string SchemaIdBuilder(Type type)

@@ -42,29 +42,57 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", policy =>
     {
-        if (corsOrigins.Contains("*")) // 'Wildcard' mode
-        {
-            policy.AllowAnyOrigin()
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        }
-        else
-        {
-            policy.WithOrigins(corsOrigins)
-                .AllowAnyHeader()
-                .AllowAnyMethod()
-                .AllowCredentials()
-                .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
+        policy.AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials()
+              .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
 
+        policy.SetIsOriginAllowed(origin =>
+        {
+            // 1. Allow localhost/127.0.0.1 if explicitly enabled
             if (allowLocalhost)
             {
-                policy.SetIsOriginAllowed(origin =>
+                try
                 {
-                    var host = new Uri(origin).Host;
-                    return host is "localhost" or "127.0.0.1";
-                });
+                    var uri = new Uri(origin);
+                    var host = uri.Host;
+                    if (host is "localhost" or "127.0.0.1")
+                    {
+                        return true;
+                    }
+                }
+                catch
+                {
+                    // Invalid origin format
+                }
             }
-        }
+
+            // 2. Match against configured AllowedOrigins (supports wildcard * in urls)
+            foreach (var allowed in corsOrigins)
+            {
+                if (allowed == "*")
+                {
+                    return true;
+                }
+
+                if (allowed.Contains("*"))
+                {
+                    // Escape pattern and convert * to regex .*
+                    var pattern = "^" + System.Text.RegularExpressions.Regex.Escape(allowed)
+                        .Replace("\\*", ".*") + "$";
+                    if (System.Text.RegularExpressions.Regex.IsMatch(origin, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+                else if (string.Equals(allowed, origin, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        });
     });
 });
 
@@ -148,16 +176,16 @@ if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
 }
 
 app.UseHttpsRedirection();
-// Serve static files
-app.UseStaticFiles(new StaticFileOptions
-{
-    // having the WebPage as the entrypoint of the WHOLE web app.
-    FileProvider = new PhysicalFileProvider(Path.Combine(builder.Environment.ContentRootPath, "WebPage")), 
-    RequestPath = ""
-});
+// Serve static files (Commented out for pure backend CSR API refactoring)
+// app.UseStaticFiles(new StaticFileOptions
+// {
+//     // having the WebPage as the entrypoint of the WHOLE web app.
+//     FileProvider = new PhysicalFileProvider(Path.Combine(builder.Environment.ContentRootPath, "WebPage")), 
+//     RequestPath = ""
+// });
 app.UseMiddleware<ErrorMiddleware>();
 app.UseMiddleware<TraceMiddleware>(); 
-app.UseMiddleware<SpaMiddleware>();
+// app.UseMiddleware<SpaMiddleware>(); // Commented out for pure backend CSR API refactoring
 app.UseMiddleware<AuthMiddleware>();
 
 app.MapControllers();

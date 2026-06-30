@@ -57,3 +57,7 @@ nunit-*.xml
 *.pem
 */.idea
 .idea
+
+# Frontend Node/Build
+/web/node_modules/
+/web/dist/
