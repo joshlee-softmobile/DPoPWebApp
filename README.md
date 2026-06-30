@@ -34,7 +34,7 @@ Instead of reaching for a heavy CLI-based framework, the frontend implements the
 The .NET backend is built following **Clean Architecture** patterns, separating domain rules from implementation details.
 
 ### Clean Architecture Layers
-![](./api/CleanArchitecture.webp)
+![](./api/clean-architecture.png)
 
 * **Domain**: Enterprise business rules and domain entities.
 * **Application**: Application-specific business rules, validations, and services.
